@@ -1,0 +1,6 @@
+#!/bin/zsh
+set -euo pipefail
+
+source "${HOME:?HOME is required}/.codex/tools/cliproxyapi/cliproxy-common.sh"
+cliproxy_render_runtime
+exec "$cliproxy_binary" -config "$cliproxy_runtime_config" -codex-login

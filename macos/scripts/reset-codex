@@ -1,0 +1,26 @@
+#!/bin/zsh
+set -euo pipefail
+
+source "${HOME:?HOME is required}/.codex/tools/cliproxyapi/cliproxy-common.sh"
+
+cliproxy_restart=true
+if [[ "${1:-}" == "--no-restart" ]]; then
+  cliproxy_restart=false
+elif (( $# > 0 )); then
+  cliproxy_die "Usage: reset-codex [--no-restart]"
+fi
+
+backup_path="$(cliproxy_switch_config reset)"
+if ! cliproxy_validate_codex_config; then
+  cp -p "$backup_path" "$cliproxy_codex_config"
+  cliproxy_die "Codex validation failed; the previous config was restored."
+fi
+
+cliproxy_stop_services
+print -- "Official Codex mode restored with the current model selection preserved."
+if $cliproxy_restart; then
+  print -- "Codex App will restart in a few seconds."
+  cliproxy_schedule_codex_restart
+else
+  print -- "Codex App restart skipped."
+fi

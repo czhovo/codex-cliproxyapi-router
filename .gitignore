@@ -5,6 +5,11 @@ deepseek_api_key.txt
 deepseek-api-key.txt
 config.runtime.yaml
 routing-mode.txt
+.env
+.env.*
+*.pem
+*.p12
+*.secret
 
 # Runtime state and logs
 *.pid
@@ -15,6 +20,8 @@ cliproxy-model-catalog.json
 # Downloaded third-party artifacts
 cli-proxy-api.exe
 CLIProxyAPI_*.zip
+CLIProxyAPI_*.tar.gz
+cli-proxy-api
 stage-*/
 
 # Backups and temporary files

@@ -9,16 +9,29 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const listenHost = "127.0.0.1";
-const listenPort = integerEnv("CODEX_COMPAT_PORT", 8318, 1, 65535);
+const listenPort = integerEnv(
+  "CODEX_COMPAT_PORT",
+  integerEnv("CLIPROXY_LISTEN_PORT", 8318, 1, 65535),
+  1,
+  65535,
+);
 const proxyHost = "127.0.0.1";
-const proxyPort = integerEnv("CLIPROXY_PORT", 8317, 1, 65535);
+const proxyPort = integerEnv(
+  "CLIPROXY_PORT",
+  integerEnv("CLIPROXY_UPSTREAM_PORT", 8317, 1, 65535),
+  1,
+  65535,
+);
 const requestLimit = 64 * 1024 * 1024;
 const errorBodyLimit = 2 * 1024 * 1024;
 const officialOrigin = new URL(process.env.CODEX_OFFICIAL_ORIGIN || "https://chatgpt.com");
 const officialPath = process.env.CODEX_OFFICIAL_PATH || "/backend-api/codex/responses";
 const clientKeyPath = process.env.CLIPROXY_CLIENT_KEY_FILE || path.join(scriptDir, "client-key.txt");
 const upstreamClientKey = process.env.CLIPROXY_CLIENT_KEY || fs.readFileSync(clientKeyPath, "utf8").trim();
-const routingModePath = process.env.CODEX_ROUTING_MODE_FILE || path.join(scriptDir, "routing-mode.txt");
+const routingModePath =
+  process.env.CODEX_ROUTING_MODE_FILE ||
+  process.env.CLIPROXY_GPT_ROUTING_MODE_FILE ||
+  path.join(scriptDir, "routing-mode.txt");
 
 if (!upstreamClientKey) throw new Error("The local CLIProxyAPI client key is empty.");
 
@@ -50,7 +63,8 @@ function integerEnv(name, fallback, minimum, maximum) {
 function readRoutingMode() {
   try {
     const value = fs.readFileSync(routingModePath, "utf8").trim();
-    if (value === "1" || value === "2") return Number.parseInt(value, 10);
+    if (value === "1" || value === "direct") return 1;
+    if (value === "2" || value === "forward") return 2;
   } catch (error) {
     if (error?.code !== "ENOENT") safeLog({ event: "mode_read_error", error: safeError(error) });
   }
@@ -765,6 +779,7 @@ const server = http.createServer(async (request, response) => {
       JSON.stringify({
         status: shuttingDown ? "shutting_down" : "ok",
         mode,
+        gpt_routing_mode: mode === 1 ? "direct" : "forward",
         routing: mode === 1 ? "gpt-official-deepseek-cliproxy" : "all-cliproxy",
         active_requests: activeUpstreamRequests.size,
       }),

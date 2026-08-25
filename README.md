@@ -1,4 +1,4 @@
-# Codex CLIProxyAPI Router for Windows
+# Codex CLIProxyAPI Router for Windows and macOS
 
 一个面向 Codex App 的本机双层路由工具：在同一个模型选择器中动态合并 GPT 与
 DeepSeek，并允许在两种 GPT 认证路径之间切换。所有本地服务只监听
@@ -59,7 +59,9 @@ GPT、DeepSeek 和其他代理模型全部走 8318 → 8317。GPT 使用 CLIProx
   `gpt-5.6-sol`。它不会改变账号本身的模型权限。
 - 两个 Sol 项保留 GPT 的 `max` / `ultra` 推理强度与 Fast / `priority`，默认速度为
   Fast。
-- 隐藏模型选择器中的 `gpt-5.5`、`gpt-5.4`、`gpt-5.4-mini`。
+- 选择器只发布当前上游实际存在的目标项，并按以下顺序展示：Sol 272k、Sol 1.05M、
+  Terra、Luna、Codex Spark、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使
+  整个目录失败；其他上游模型不进入本项目的选择器。
 - 上游存在 `deepseek-v4-flash` 或 `deepseek-v4-pro` 时才发布对应项；二者均为
   1M context、`low / high / max`、默认 `high`，且不声明 Fast / service tier。
 
@@ -82,17 +84,17 @@ GPT、DeepSeek 和其他代理模型全部走 8318 → 8317。GPT 使用 CLIProx
 
 ## 系统要求
 
-- Windows 10/11 x64
 - 已安装并登录的 Codex App
-- Windows PowerShell 5.1 或 PowerShell 7
-- Node.js（`node.exe` 可从 `PATH` 找到）
+- Node.js，且运行时提供 zstd 压缩/解压 API
 - DeepSeek API key
 - Mode 2 额外需要可完成 CLIProxyAPI Codex OAuth 登录
+- Windows：Windows 10/11 x64，Windows PowerShell 5.1 或 PowerShell 7
+- macOS：Apple Silicon 或 Intel Mac，zsh，`launchd`
 
 Codex 配置字段的官方说明见
 [Codex config reference](https://learn.chatgpt.com/docs/config-file/config-reference)。
 
-## 安装
+## Windows 安装
 
 克隆仓库并运行安装器：
 
@@ -131,9 +133,38 @@ $protector = Join-Path $env:USERPROFILE '.codex\tools\cliproxyapi\Protect-CLIPro
 
 不要在命令行参数、Git 配置、README、Issue 或日志中粘贴 key。
 
+## macOS 安装
+
+```zsh
+git clone https://github.com/czhovo/codex-cliproxyapi-router.git
+cd codex-cliproxyapi-router
+zsh ./macos/Install-CLIProxyAPIRouter.sh
+```
+
+安装器会根据 `uname -m` 下载并校验固定的 CLIProxyAPI `v7.2.119` 官方包：
+
+- Apple Silicon：`darwin_aarch64`，SHA-256
+  `7e9bc444a7defd9ae06dc37f16a6ce73be754656b07324aa3d264a3d01c71175`
+- Intel：`darwin_amd64`，SHA-256
+  `0ab1f1a0751532cf0f36fd396f6a9d74707358bcbfde16f809ffce4bf069f26b`
+
+它会把脚本安装到当前用户的 `~/.codex/tools/cliproxyapi`，生成仅供本机使用的随机
+client key，创建 `launchd` 配置和桌面双击入口，但不会启动服务、修改
+`config.toml` 或重启 Codex App。离线安装可使用
+`--archive <verified-release-archive>`；归档仍必须通过固定 SHA-256。
+
+将 DeepSeek key 单独写入安装器创建的文件：
+
+```zsh
+open -e "$HOME/.codex/deepseek_api_key.txt"
+```
+
+该文件、独立 OAuth、运行配置、日志和生成目录均位于仓库之外。
+
 ## 启用
 
-双击桌面的 `enable-cliproxy.cmd` 会交互询问 Mode 1 或 Mode 2，然后启动 8317/8318、
+Windows 双击桌面的 `enable-cliproxy.cmd`，macOS 双击 `enable-cliproxy.command`，都会
+交互询问 Mode 1 或 Mode 2，然后启动 8317/8318、
 生成动态目录、写入 Codex 配置、安装当前用户的 Windows 登录启动项，并默认安排 Codex
 App 重启。
 
@@ -143,6 +174,13 @@ App 重启。
 $enable = Join-Path $env:USERPROFILE '.codex\Enable-CLIProxyAPI.ps1'
 & $enable -Mode 1 -NoRestart
 # 或：& $enable -Mode 2 -NoRestart
+```
+
+macOS 无重启启用：
+
+```zsh
+"$HOME/.local/bin/enable-cliproxy" --mode 1 --no-restart
+# 或："$HOME/.local/bin/enable-cliproxy" --mode 2 --no-restart
 ```
 
 `-NoRestart` 下配置会立即落盘，但已打开的 Codex App 通常要在之后手动重启才能刷新
@@ -159,11 +197,18 @@ service_tier = "priority"
 
 ## 回退到官方直连
 
-双击桌面的 `reset-codex.cmd`，或无重启执行：
+双击 Windows 桌面的 `reset-codex.cmd` 或 macOS 桌面的 `reset-codex.command`。
+Windows 无重启执行：
 
 ```powershell
 $reset = Join-Path $env:USERPROFILE '.codex\Restore-GPT56Sol-ChatGPT.ps1'
 & $reset -NoRestart
+```
+
+macOS 无重启执行：
+
+```zsh
+"$HOME/.local/bin/reset-codex" --no-restart
 ```
 
 Reset 会：
@@ -193,6 +238,12 @@ $catalogPath = Join-Path $env:USERPROFILE '.codex\cliproxy-model-catalog.json'
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Package.ps1
 ```
 
+macOS：
+
+```zsh
+zsh ./tests/Test-MacPackage.sh
+```
+
 ## 文件说明
 
 | 文件 | 用途 |
@@ -211,6 +262,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Test-Package.ps1
 | `scripts/Restart-CodexApp.ps1` | 独立 worker 安排 Codex App 重启 |
 | `startup/CLIProxyAPI-Autostart.vbs` | Windows 登录时仅启动本地服务，不改模式 |
 | `launchers/*.cmd` | 桌面双击入口与临时错误日志清理 |
+| `macos/Install-CLIProxyAPIRouter.sh` | 下载并校验 macOS CLIProxyAPI、安装当前用户文件 |
+| `macos/scripts/*` | macOS 模式切换、目录生成、配置事务与 OAuth 登录 |
+| `macos/launchers/*.command` | macOS 桌面双击入口与临时错误日志清理 |
+| `tests/Test-MacPackage.sh` | macOS 语法、模型目录、占位符和敏感信息离线检查 |
 
 ## 不会被提交的内容
 

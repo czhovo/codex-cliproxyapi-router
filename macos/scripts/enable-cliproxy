@@ -1,0 +1,131 @@
+#!/bin/zsh
+set -euo pipefail
+
+source "${HOME:?HOME is required}/.codex/tools/cliproxyapi/cliproxy-common.sh"
+
+cliproxy_restart=true
+cliproxy_mode_choice=""
+while (( $# > 0 )); do
+  case "$1" in
+    --no-restart)
+      cliproxy_restart=false
+      shift
+      ;;
+    --mode)
+      (( $# >= 2 )) || cliproxy_die "--mode requires 1 or 2."
+      cliproxy_mode_choice="$2"
+      shift 2
+      ;;
+    --mode=*)
+      cliproxy_mode_choice="${1#--mode=}"
+      shift
+      ;;
+    *)
+      cliproxy_die "Usage: enable-cliproxy [--no-restart] [--mode 1|2]"
+      ;;
+  esac
+done
+
+if [[ -z "$cliproxy_mode_choice" ]]; then
+  [[ -t 0 ]] || cliproxy_die "Interactive mode selection requires a terminal; use --mode 1 or --mode 2."
+  print -- "请选择 GPT 路由模式："
+  print -- "  1) GPT 直连 OpenAI；DeepSeek/其他代理模型经 8317"
+  print -- "  2) GPT 与 DeepSeek/其他代理模型全部经 8317"
+  while true; do
+    read "cliproxy_mode_choice?请输入 1 或 2: " || cliproxy_die "No routing mode was selected."
+    [[ "$cliproxy_mode_choice" == "1" || "$cliproxy_mode_choice" == "2" ]] && break
+    print -u2 -- "请输入 1 或 2。"
+  done
+fi
+
+case "$cliproxy_mode_choice" in
+  1|direct) cliproxy_routing_mode="direct" ;;
+  2|forward) cliproxy_routing_mode="forward" ;;
+  *) cliproxy_die "Routing mode must be 1 or 2." ;;
+esac
+
+[[ -x "$cliproxy_binary" ]] || cliproxy_die "CLIProxyAPI binary is missing: $cliproxy_binary"
+[[ -s "$cliproxy_key_file" ]] || cliproxy_die "Add the DeepSeek API key to $cliproxy_key_file"
+if [[ "$cliproxy_routing_mode" == "forward" ]]; then
+  cliproxy_has_codex_oauth || \
+    cliproxy_die "Mode 2 requires an enabled Codex OAuth credential. Run: $cliproxy_tools_dir/login-codex-oauth"
+fi
+"$cliproxy_node" -e 'process.exit(typeof require("node:zlib").zstdDecompressSync === "function" ? 0 : 1)' || \
+  cliproxy_die "The configured Node.js runtime does not support zstd request decoding."
+"$cliproxy_node" --check "$cliproxy_tools_dir/codex-compat-proxy.mjs" >/dev/null || \
+  cliproxy_die "The Codex compatibility proxy failed its syntax check."
+
+mkdir -p "$cliproxy_state_dir" "$cliproxy_auth_dir"
+chmod 700 "$cliproxy_state_dir" "$cliproxy_auth_root" "$cliproxy_auth_dir"
+
+cliproxy_previous_mode=""
+cliproxy_had_previous_mode=false
+if [[ -s "$cliproxy_routing_mode_file" ]]; then
+  cliproxy_previous_mode="$(<"$cliproxy_routing_mode_file")"
+  cliproxy_had_previous_mode=true
+fi
+cliproxy_services_were_running=false
+if /usr/bin/curl --silent --fail --max-time 2 "http://127.0.0.1:8318/health" >/dev/null 2>&1; then
+  cliproxy_services_were_running=true
+fi
+cliproxy_catalog_backup="$cliproxy_state_dir/catalog-before-enable-$$.json"
+cliproxy_had_catalog=false
+if [[ -f "$cliproxy_catalog" ]]; then
+  cp -p "$cliproxy_catalog" "$cliproxy_catalog_backup"
+  cliproxy_had_catalog=true
+fi
+backup_path=""
+cliproxy_enable_succeeded=false
+
+cliproxy_rollback_enable() {
+  local exit_code=$?
+  if ! $cliproxy_enable_succeeded; then
+    set +e
+    if [[ -n "$backup_path" && -f "$backup_path" ]]; then
+      cp -p "$backup_path" "$cliproxy_codex_config"
+    fi
+    if $cliproxy_had_catalog; then
+      cp -p "$cliproxy_catalog_backup" "$cliproxy_catalog"
+    else
+      rm -f "$cliproxy_catalog"
+    fi
+    if $cliproxy_had_previous_mode; then
+      cliproxy_set_routing_mode "$cliproxy_previous_mode"
+    else
+      rm -f "$cliproxy_routing_mode_file"
+    fi
+    if ! $cliproxy_services_were_running; then
+      cliproxy_stop_services
+    fi
+  fi
+  rm -f "$cliproxy_catalog_backup"
+  return "$exit_code"
+}
+trap cliproxy_rollback_enable EXIT
+
+if [[ "$cliproxy_routing_mode" == "direct" ]]; then
+  cliproxy_refresh_official_catalog
+fi
+cliproxy_set_routing_mode "$cliproxy_routing_mode"
+cliproxy_render_runtime
+cliproxy_start_services "$cliproxy_routing_mode"
+cliproxy_build_catalog "$cliproxy_routing_mode"
+
+backup_path="$(cliproxy_switch_config enable)"
+if ! cliproxy_validate_codex_config || ! cliproxy_validate_catalog; then
+  cp -p "$backup_path" "$cliproxy_codex_config"
+  cliproxy_die "Codex validation failed; the previous config was restored."
+fi
+
+cliproxy_enable_succeeded=true
+if [[ "$cliproxy_routing_mode" == "direct" ]]; then
+  print -- "Mode 1 enabled: GPT -> OpenAI direct; DeepSeek/other proxy models -> CLIProxyAPI 127.0.0.1:8317 (Codex entry 127.0.0.1:8318)."
+else
+  print -- "Mode 2 enabled: GPT and DeepSeek/other proxy models -> CLIProxyAPI 127.0.0.1:8317 (Codex entry 127.0.0.1:8318)."
+fi
+if $cliproxy_restart; then
+  print -- "Codex App will restart in a few seconds."
+  cliproxy_schedule_codex_restart
+else
+  print -- "Codex App restart skipped."
+fi
