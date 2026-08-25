@@ -1,0 +1,32 @@
+# Credentials and generated runtime configuration
+auth/
+client-key.txt
+deepseek_api_key.txt
+deepseek-api-key.txt
+config.runtime.yaml
+routing-mode.txt
+
+# Runtime state and logs
+*.pid
+*.log
+logs/
+cliproxy-model-catalog.json
+
+# Downloaded third-party artifacts
+cli-proxy-api.exe
+CLIProxyAPI_*.zip
+stage-*/
+
+# Backups and temporary files
+backups/
+*.backup
+*.bak
+*.tmp
+*.tmp-*
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+Microsoft/
+.idea/
+.vscode/

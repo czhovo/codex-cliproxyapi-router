@@ -1,0 +1,76 @@
+host: "127.0.0.1"
+port: 8317
+
+tls:
+  enable: false
+  cert: ""
+  key: ""
+
+remote-management:
+  allow-remote: false
+  secret-key: ""
+  disable-control-panel: true
+
+auth-dir: "__AUTH_DIR__"
+
+api-keys:
+  - "__LOCAL_PROXY_KEY__"
+
+debug: false
+plugins:
+  enabled: false
+commercial-mode: true
+logging-to-file: true
+logs-max-total-size-mb: 32
+error-logs-max-files: 5
+usage-statistics-enabled: false
+passthrough-headers: false
+request-retry: 2
+max-retry-credentials: 2
+max-retry-interval: 10
+disable-cooling: true
+
+routing:
+  strategy: "round-robin"
+  session-affinity: true
+  session-affinity-ttl: "1h"
+
+codex:
+  identity-confuse: false
+  disable-codex-cloaking: true
+  optimize-multi-agent-v2: false
+
+openai-compatibility:
+  - name: "deepseek"
+    base-url: "https://api.deepseek.com"
+    api-key-entries:
+      - api-key: "__DEEPSEEK_API_KEY__"
+    models:
+      - name: "deepseek-v4-flash"
+        alias: "deepseek-v4-flash"
+        display-name: "DeepSeek V4 Flash"
+        max-context-length: 1000000
+        input-modalities: [text]
+        output-modalities: [text]
+        thinking:
+          levels: ["low", "high", "max"]
+      - name: "deepseek-v4-pro"
+        alias: "deepseek-v4-pro"
+        display-name: "DeepSeek V4 Pro"
+        max-context-length: 1000000
+        input-modalities: [text]
+        output-modalities: [text]
+        thinking:
+          levels: ["low", "high", "max"]
+
+payload:
+  filter:
+    - models:
+        - name: "deepseek-v4-flash"
+          protocol: "openai"
+          from-protocol: "responses"
+        - name: "deepseek-v4-pro"
+          protocol: "openai"
+          from-protocol: "responses"
+      params:
+        - "service_tier"
