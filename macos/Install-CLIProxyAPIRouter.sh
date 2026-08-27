@@ -98,7 +98,13 @@ mkdir -p "$codex_dir" "$tools_dir" "$state_dir" "$auth_root" "$auth_dir" \
   "$binary_dir" "$launch_dir" "$local_bin_dir"
 chmod 700 "$codex_dir" "$tools_dir" "$state_dir" "$auth_root" "$auth_dir" "$binary_dir"
 
-/usr/bin/install -m 700 "$downloaded_binary" "$binary_dir/cli-proxy-api"
+installed_binary="$binary_dir/cli-proxy-api"
+/usr/bin/install -m 700 "$downloaded_binary" "$installed_binary"
+# Upstream Go releases carry a linker-generated ad-hoc signature that macOS may
+# reject when a LaunchAgent starts the binary after reboot. Replace it with a
+# local ad-hoc signature after the verified archive has been installed.
+/usr/bin/codesign --force --sign - --timestamp=none "$installed_binary"
+/usr/bin/codesign --verify --strict "$installed_binary"
 /usr/bin/install -m 700 "$repository_root/src/codex-catalog-compat.mjs" "$tools_dir/codex-compat-proxy.mjs"
 /usr/bin/install -m 600 "$repository_root/config/config.template.yaml" "$tools_dir/config.template.yaml"
 for source_name in \

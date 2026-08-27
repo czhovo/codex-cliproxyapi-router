@@ -152,6 +152,8 @@ zsh ./macos/Install-CLIProxyAPIRouter.sh
 client key，创建 `launchd` 配置和桌面双击入口，但不会启动服务、修改
 `config.toml` 或重启 Codex App。离线安装可使用
 `--archive <verified-release-archive>`；归档仍必须通过固定 SHA-256。
+安装器会在归档校验完成后对 CLIProxyAPI 二进制执行本机 ad-hoc 重签名，避免 macOS
+在重启后拒绝由 `launchd` 启动上游自带的 linker-signed 二进制。
 
 将 DeepSeek key 单独写入安装器创建的文件：
 

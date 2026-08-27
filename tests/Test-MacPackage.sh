@@ -49,6 +49,10 @@ done
 /usr/bin/grep -Eq '^  disable-codex-cloaking: true$' "$template"
 /usr/bin/grep -Eq '^cliproxy_ready_timeout_seconds=120$' \
   "$repository_root/macos/scripts/cliproxy-common.sh"
+/usr/bin/grep -Fq '/usr/bin/codesign --force --sign - --timestamp=none "$installed_binary"' \
+  "$repository_root/macos/Install-CLIProxyAPIRouter.sh"
+/usr/bin/grep -Fq '/usr/bin/codesign --verify --strict "$installed_binary"' \
+  "$repository_root/macos/Install-CLIProxyAPIRouter.sh"
 
 test_dir="$(mktemp -d "${TMPDIR:-/tmp}/codex-cliproxyapi-test.XXXXXX")"
 cleanup() {
