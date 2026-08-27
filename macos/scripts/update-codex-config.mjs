@@ -28,7 +28,6 @@ const controlledKeys = new Set([
   "model",
   "model_provider",
   "model_reasoning_effort",
-  "service_tier",
   "openai_base_url",
   "model_catalog_json",
 ]);
