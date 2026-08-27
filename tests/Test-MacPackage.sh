@@ -47,6 +47,8 @@ for placeholder in __AUTH_DIR__ __LOCAL_PROXY_KEY__ __DEEPSEEK_API_KEY__; do
 done
 /usr/bin/grep -Eq '^host: "127\.0\.0\.1"$' "$template"
 /usr/bin/grep -Eq '^  disable-codex-cloaking: true$' "$template"
+/usr/bin/grep -Eq '^cliproxy_ready_timeout_seconds=120$' \
+  "$repository_root/macos/scripts/cliproxy-common.sh"
 
 test_dir="$(mktemp -d "${TMPDIR:-/tmp}/codex-cliproxyapi-test.XXXXXX")"
 cleanup() {

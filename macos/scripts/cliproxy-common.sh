@@ -25,6 +25,7 @@ cliproxy_api_plist="$cliproxy_launch_dir/$cliproxy_api_label.plist"
 cliproxy_compat_plist="$cliproxy_launch_dir/$cliproxy_compat_label.plist"
 cliproxy_domain="gui/$(id -u)"
 cliproxy_compat_reload_marker="$cliproxy_state_dir/compat-reload-required"
+cliproxy_ready_timeout_seconds=120
 
 cliproxy_die() {
   print -u2 -- "ERROR: $*"
@@ -33,11 +34,40 @@ cliproxy_die() {
 
 cliproxy_wait_http() {
   local url="$1"
-  local attempts="${2:-60}"
-  local index
-  for (( index = 1; index <= attempts; index++ )); do
+  local timeout_seconds="${2:-$cliproxy_ready_timeout_seconds}"
+  local label="${3:-}"
+  local deadline=$(( SECONDS + timeout_seconds ))
+  while (( SECONDS < deadline )); do
     if /usr/bin/curl --silent --show-error --fail --max-time 2 "$url" >/dev/null 2>&1; then
       return 0
+    fi
+    if [[ -n "$label" ]] && ! cliproxy_agent_is_running "$label"; then
+      return 2
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+cliproxy_agent_is_running() {
+  local label="$1"
+  launchctl print "$cliproxy_domain/$label" 2>/dev/null | \
+    /usr/bin/grep -Fq "state = running"
+}
+
+cliproxy_wait_models() {
+  local client_key="$1"
+  local timeout_seconds="${2:-$cliproxy_ready_timeout_seconds}"
+  local label="${3:-}"
+  local deadline=$(( SECONDS + timeout_seconds ))
+  while (( SECONDS < deadline )); do
+    if /usr/bin/curl --silent --fail --max-time 2 \
+      -H "Authorization: Bearer $client_key" \
+      "http://127.0.0.1:8317/v1/models" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [[ -n "$label" ]] && ! cliproxy_agent_is_running "$label"; then
+      return 2
     fi
     sleep 0.25
   done
@@ -155,16 +185,12 @@ cliproxy_start_services() {
     cliproxy_bootstrap_agent "$cliproxy_api_label" "$cliproxy_api_plist"
   fi
 
-  local index
-  for (( index = 1; index <= 60; index++ )); do
-    if /usr/bin/curl --silent --fail --max-time 2 \
-      -H "Authorization: Bearer $client_key" \
-      "http://127.0.0.1:8317/v1/models" >/dev/null 2>&1; then
-      break
-    fi
-    sleep 0.25
-  done
-  (( index <= 60 )) || cliproxy_die "CLIProxyAPI did not become ready on 127.0.0.1:8317."
+  if ! cliproxy_wait_models \
+    "$client_key" "$cliproxy_ready_timeout_seconds" "$cliproxy_api_label"; then
+    cliproxy_agent_is_running "$cliproxy_api_label" || \
+      cliproxy_die "CLIProxyAPI exited before becoming ready on 127.0.0.1:8317."
+    cliproxy_die "CLIProxyAPI did not become ready on 127.0.0.1:8317 within ${cliproxy_ready_timeout_seconds} seconds."
+  fi
 
   launchctl enable "$cliproxy_domain/$cliproxy_compat_label" >/dev/null 2>&1 || true
   if [[ -f "$cliproxy_compat_reload_marker" ]]; then
@@ -174,8 +200,12 @@ cliproxy_start_services() {
     /usr/bin/grep -Fq "\"gpt_routing_mode\":\"$routing_mode\""; then
     cliproxy_bootstrap_agent "$cliproxy_compat_label" "$cliproxy_compat_plist"
   fi
-  cliproxy_wait_http "http://127.0.0.1:8318/health" 60 || \
-    cliproxy_die "Codex compatibility proxy did not become ready on 127.0.0.1:8318."
+  if ! cliproxy_wait_http \
+    "http://127.0.0.1:8318/health" "$cliproxy_ready_timeout_seconds" "$cliproxy_compat_label"; then
+    cliproxy_agent_is_running "$cliproxy_compat_label" || \
+      cliproxy_die "Codex compatibility proxy exited before becoming ready on 127.0.0.1:8318."
+    cliproxy_die "Codex compatibility proxy did not become ready on 127.0.0.1:8318 within ${cliproxy_ready_timeout_seconds} seconds."
+  fi
   /usr/bin/curl --silent --fail --max-time 2 "http://127.0.0.1:8318/health" | \
     /usr/bin/grep -Fq "\"gpt_routing_mode\":\"$routing_mode\"" || \
     cliproxy_die "Codex compatibility proxy did not apply GPT routing mode $routing_mode."
