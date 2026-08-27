@@ -70,24 +70,9 @@ if (mode === "enable") {
     : efforts.has(selectedModel.default_reasoning_level)
       ? selectedModel.default_reasoning_level
       : [...efforts][0];
-  const supportedServiceTiers = new Set(
-    (selectedModel.service_tiers ?? [])
-      .flatMap((tier) => [tier?.id, tier?.name])
-      .filter((tier) => typeof tier === "string" && tier !== ""),
-  );
-  const configuredServiceTier = existingSetting("service_tier");
-  const selectedServiceTier = supportedServiceTiers.has(configuredServiceTier)
-    ? configuredServiceTier
-    : supportedServiceTiers.has(selectedModel.default_service_tier)
-      ? selectedModel.default_service_tier
-      : supportedServiceTiers.has("priority")
-        ? "priority"
-        : "";
-
   topLevel.push(`model = ${JSON.stringify(selectedModel.slug)}`);
   if (selectedEffort) topLevel.push(`model_reasoning_effort = ${JSON.stringify(selectedEffort)}`);
   topLevel.push('model_provider = "openai"');
-  if (selectedServiceTier) topLevel.push(`service_tier = ${JSON.stringify(selectedServiceTier)}`);
   topLevel.push('openai_base_url = "http://127.0.0.1:8318/v1"');
   topLevel.push(`model_catalog_json = ${JSON.stringify(path.resolve(catalogPath))}`);
 } else {
@@ -117,24 +102,9 @@ if (mode === "enable") {
     : supportedEfforts.has(selectedModel.default_reasoning_level)
       ? selectedModel.default_reasoning_level
       : [...supportedEfforts][0];
-  const supportedServiceTiers = new Set(
-    (selectedModel.service_tiers ?? [])
-      .flatMap((tier) => [tier?.id, tier?.name])
-      .filter((tier) => typeof tier === "string" && tier !== ""),
-  );
-  const configuredServiceTier = existingSetting("service_tier");
-  const selectedServiceTier = supportedServiceTiers.has(configuredServiceTier)
-    ? configuredServiceTier
-    : supportedServiceTiers.has(selectedModel.default_service_tier)
-      ? selectedModel.default_service_tier
-      : supportedServiceTiers.has("priority")
-        ? "priority"
-        : "";
-
   topLevel.push(`model = ${JSON.stringify(selectedModel.slug)}`);
   if (selectedEffort) topLevel.push(`model_reasoning_effort = ${JSON.stringify(selectedEffort)}`);
   topLevel.push('model_provider = "openai"');
-  if (selectedServiceTier) topLevel.push(`service_tier = ${JSON.stringify(selectedServiceTier)}`);
 }
 
 const resultLines = [...topLevel];

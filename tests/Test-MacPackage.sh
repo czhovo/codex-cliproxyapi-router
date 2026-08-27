@@ -112,6 +112,50 @@ for (const slug of ["deepseek-v4-flash", "deepseek-v4-pro"]) {
 }
 NODE
 
+mkdir -p "$test_dir/state"
+cp "$test_dir/source.json" "$test_dir/state/openai-models.json"
+"$node_path" - "$test_dir/config.toml" <<'NODE'
+require("node:fs").writeFileSync(
+  process.argv[2],
+  [
+    'model = "gpt-5.6-sol"',
+    'model_reasoning_effort = "xhigh"',
+    'model_provider = "openai"',
+    'service_tier = "priority"',
+    'openai_base_url = "https://example.invalid/v1"',
+    'model_catalog_json = "/tmp/old-models.json"',
+    'approval_policy = "never"',
+    "",
+    "[features]",
+    "shell_tool = true",
+    "",
+  ].join("\n"),
+  "utf8",
+);
+NODE
+"$node_path" "$repository_root/macos/scripts/update-codex-config.mjs" \
+  enable "$test_dir/config.toml" "$test_dir/catalog.json" "$test_dir/state" >/dev/null
+"$node_path" - "$test_dir/config.toml" <<'NODE'
+const config = require("node:fs").readFileSync(process.argv[2], "utf8");
+if (/^\s*service_tier\s*=/m.test(config)) throw new Error("enable must not set a speed tier");
+if (!/^model = "gpt-5\.6-sol"$/m.test(config)) throw new Error("enable changed the selected model");
+if (!/^model_reasoning_effort = "xhigh"$/m.test(config)) throw new Error("enable changed reasoning effort");
+if (!/^approval_policy = "never"$/m.test(config) || !/^\[features\]$/m.test(config)) {
+  throw new Error("enable did not preserve unrelated settings");
+}
+NODE
+"$node_path" "$repository_root/macos/scripts/update-codex-config.mjs" \
+  reset "$test_dir/config.toml" "$test_dir/catalog.json" "$test_dir/state" >/dev/null
+"$node_path" - "$test_dir/config.toml" <<'NODE'
+const config = require("node:fs").readFileSync(process.argv[2], "utf8");
+if (/^\s*service_tier\s*=/m.test(config)) throw new Error("reset must not set a speed tier");
+if (/^\s*(?:openai_base_url|model_catalog_json)\s*=/m.test(config)) {
+  throw new Error("reset retained proxy-only settings");
+}
+if (!/^model = "gpt-5\.6-sol"$/m.test(config)) throw new Error("reset changed the selected model");
+if (!/^model_reasoning_effort = "xhigh"$/m.test(config)) throw new Error("reset changed reasoning effort");
+NODE
+
 "$node_path" - "$test_dir/no-sol.json" <<'NODE'
 require("node:fs").writeFileSync(
   process.argv[2],
@@ -181,4 +225,4 @@ for (const relative of files) {
 if (findings.length) throw new Error(`Potential secret or machine-specific value:\n${findings.join("\n")}`);
 NODE
 
-print -- "macOS package validation passed: syntax, placeholders, exact picker list, dynamic absence handling, and OAuth/API-key scan."
+print -- "macOS package validation passed: syntax, placeholders, exact picker list, speed-neutral config switching, dynamic absence handling, and OAuth/API-key scan."
