@@ -60,12 +60,10 @@ if ($routingMode -eq '1') {
         throw 'Bundled official Codex model catalog does not contain a models array.'
     }
     $officialIds = @($officialCatalog.models | ForEach-Object { [string]$_.slug })
-    $proxyOnlyModels = @(
-        $catalog.models | Where-Object {
-            -not ([string]$_.slug).StartsWith('gpt-') -and ([string]$_.slug) -notin $officialIds
-        }
+    $supplementalProxyModels = @(
+        $catalog.models | Where-Object { ([string]$_.slug) -notin $officialIds }
     )
-    Set-ModelProperty -Model $officialCatalog -Name 'models' -Value ([object[]]@($officialCatalog.models + $proxyOnlyModels))
+    Set-ModelProperty -Model $officialCatalog -Name 'models' -Value ([object[]]@($officialCatalog.models + $supplementalProxyModels))
     $catalog = $officialCatalog
 }
 

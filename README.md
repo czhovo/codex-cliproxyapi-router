@@ -48,8 +48,9 @@ GPT、DeepSeek 和其他代理模型全部走 8318 → 8317。GPT 使用 CLIProx
 登录流程。
 
 模式写入本机 `routing-mode.txt` 并由开机启动流程保留；`/health` 会报告当前模式。
-Mode 1 的 Windows 目录直接读取 Codex 客户端内置官方 GPT 目录并合并 8317 的代理模型，
-因此显示 Astra 不依赖独立 OAuth 账号；Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
+Mode 1 的 Windows 目录直接读取 Codex 客户端内置官方 GPT 目录，并合并 8317 额外发布且
+未重复的模型，因此显示 Astra 不依赖独立 OAuth，同时不会丢失 8317 独有的 Codex Spark；
+Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
 
 ## 模型目录行为
 

@@ -41,14 +41,13 @@ if (mode === "direct") {
   const existingSlugs = new Set(
     officialCatalog.models.map((model) => model?.slug).filter((slug) => typeof slug === "string"),
   );
-  const proxyOnlyModels = proxyCatalog.models.filter(
+  const supplementalProxyModels = proxyCatalog.models.filter(
     (model) =>
       model &&
       typeof model.slug === "string" &&
-      !model.slug.startsWith("gpt-") &&
       !existingSlugs.has(model.slug),
   );
-  catalog = { ...officialCatalog, models: [...officialCatalog.models, ...proxyOnlyModels] };
+  catalog = { ...officialCatalog, models: [...officialCatalog.models, ...supplementalProxyModels] };
 }
 
 catalog.models = catalog.models.filter(

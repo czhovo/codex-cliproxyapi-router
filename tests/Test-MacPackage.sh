@@ -122,6 +122,24 @@ for (const slug of ["deepseek-v4-flash", "deepseek-v4-pro"]) {
 }
 NODE
 
+"$node_path" - "$test_dir/source.json" "$test_dir/official-without-spark.json" <<'NODE'
+const fs = require("node:fs");
+const source = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+const models = source.models.filter((model) => model.slug.startsWith("gpt-") && model.slug !== "gpt-5.3-codex-spark");
+fs.writeFileSync(process.argv[3], JSON.stringify({ models }), "utf8");
+NODE
+"$node_path" "$repository_root/macos/scripts/build-model-catalog.mjs" \
+  direct "$test_dir/source.json" "$test_dir/direct-catalog.json" "$test_dir/official-without-spark.json"
+"$node_path" - "$test_dir/direct-catalog.json" <<'NODE'
+const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8")).models;
+const slugs = models.map((model) => model.slug);
+const expected = [
+  "gpt-6-astra", "gpt-6-astra-1m", "gpt-5.6-sol", "gpt-5.6-terra",
+  "gpt-5.6-luna", "gpt-5.3-codex-spark", "deepseek-v4-flash", "deepseek-v4-pro",
+];
+if (JSON.stringify(slugs) !== JSON.stringify(expected)) throw new Error("mode 1 supplemental proxy model merge mismatch");
+NODE
+
 mkdir -p "$test_dir/state"
 cp "$test_dir/source.json" "$test_dir/state/openai-models.json"
 "$node_path" - "$test_dir/config.toml" <<'NODE'
