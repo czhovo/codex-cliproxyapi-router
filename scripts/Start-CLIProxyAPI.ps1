@@ -102,6 +102,10 @@ function Wait-CompatHealth([int]$Seconds = 25) {
 }
 
 function Assert-CompatIdle {
+    # A stopped compatibility service cannot have live requests. Do not let an
+    # unmatched route entry from an older log block a clean startup.
+    if (@(Get-ListenerPids -Port 8318).Count -eq 0) { return }
+
     $health = Get-CompatHealth
     if ($null -ne $health) {
         if ([int]$health.active_requests -gt 0) {
@@ -236,8 +240,8 @@ try {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required file is missing: $required" }
     }
     $version = Get-ExecutableVersion
-    if ($version -notmatch 'Version:\s*7\.2\.119\b') {
-        throw 'The fixed CLIProxyAPI executable is not official version 7.2.119.'
+    if ($version -notmatch 'Version:\s*7\.2\.151\b') {
+        throw 'The fixed CLIProxyAPI executable is not official version 7.2.151.'
     }
     & $nodePath --check $compatScriptPath
     if ($LASTEXITCODE -ne 0) { throw 'Compatibility proxy Node syntax validation failed.' }

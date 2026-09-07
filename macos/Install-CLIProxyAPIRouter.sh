@@ -46,15 +46,15 @@ codex_binary="/Applications/ChatGPT.app/Contents/Resources/codex"
 [[ -n "$node_path" ]] || { print -u2 -- "Node.js was not found on PATH."; exit 1; }
 [[ -x "$codex_binary" ]] || { print -u2 -- "Codex App binary was not found at $codex_binary"; exit 1; }
 
-cliproxy_version="7.2.119"
+cliproxy_version="7.2.151"
 case "$(uname -m)" in
   arm64)
     archive_name="CLIProxyAPI_${cliproxy_version}_darwin_aarch64.tar.gz"
-    expected_sha256="7e9bc444a7defd9ae06dc37f16a6ce73be754656b07324aa3d264a3d01c71175"
+    expected_sha256="9115b9691ceff071735ec1365c2885dca5d4084105de09877f5afdb675f1f815"
     ;;
   x86_64)
     archive_name="CLIProxyAPI_${cliproxy_version}_darwin_amd64.tar.gz"
-    expected_sha256="0ab1f1a0751532cf0f36fd396f6a9d74707358bcbfde16f809ffce4bf069f26b"
+    expected_sha256="05d9344b0a39b81ef1d4217b1136964dadfba4a485d18a70564562fef4f6bf98"
     ;;
   *)
     print -u2 -- "Unsupported macOS architecture: $(uname -m)"

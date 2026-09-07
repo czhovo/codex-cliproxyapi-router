@@ -57,12 +57,18 @@ if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
 }
 
 $configText = [System.IO.File]::ReadAllText($configPath, [System.Text.Encoding]::UTF8)
+$currentModelMatch = [Regex]::Match($configText, '(?m)^model\s*=\s*"([^"]+)"\s*$')
+$restoredModel = if ($currentModelMatch.Success) { $currentModelMatch.Groups[1].Value } else { 'gpt-5.6-sol' }
+if ($restoredModel -eq 'gpt-5.6-sol-1m') { $restoredModel = 'gpt-5.6-sol' }
+elseif ($restoredModel -eq 'gpt-6-astra-1m') { $restoredModel = 'gpt-6-astra' }
+elseif ($restoredModel -notlike 'gpt-*') { $restoredModel = 'gpt-5.6-sol' }
+$currentReasoningMatch = [Regex]::Match($configText, '(?m)^model_reasoning_effort\s*=\s*"([^"]+)"\s*$')
+$restoredReasoning = if ($currentReasoningMatch.Success) { $currentReasoningMatch.Groups[1].Value } else { 'xhigh' }
 $lines = [System.Text.RegularExpressions.Regex]::Split($configText, '\r?\n')
 $desiredSettings = [ordered]@{
-    model = 'model = "gpt-5.6-sol"'
-    model_reasoning_effort = 'model_reasoning_effort = "xhigh"'
+    model = "model = `"$restoredModel`""
+    model_reasoning_effort = "model_reasoning_effort = `"$restoredReasoning`""
     model_provider = 'model_provider = "openai"'
-    service_tier = 'service_tier = "priority"'
 }
 $foundSettings = @{}
 $restoredLines = New-Object 'System.Collections.Generic.List[string]'
@@ -122,10 +128,9 @@ if (-not $restoredText.EndsWith("`r`n")) {
 }
 
 $requiredPatterns = @(
-    '(?m)^model = "gpt-5\.6-sol"\r?$',
-    '(?m)^model_reasoning_effort = "xhigh"\r?$',
-    '(?m)^model_provider = "openai"\r?$',
-    '(?m)^service_tier = "priority"\r?$'
+    ('(?m)^model = "' + [Regex]::Escape($restoredModel) + '"\r?$'),
+    ('(?m)^model_reasoning_effort = "' + [Regex]::Escape($restoredReasoning) + '"\r?$'),
+    '(?m)^model_provider = "openai"\r?$'
 )
 foreach ($pattern in $requiredPatterns) {
     if ($restoredText -notmatch $pattern) {
@@ -144,7 +149,7 @@ if ($ValidateOnly) {
     Write-Output 'Restore script validation passed; no file or process was changed.'
     Write-Output "Codex App CLI: $codexExecutable"
     Write-Output "ChatGPT login active: $($loginStatus.IsChatGPT)"
-    Write-Output 'Default speed after restore: Fast (service_tier = priority)'
+    Write-Output 'Model, reasoning, and speed selections will be preserved where the official catalog supports them.'
     exit 0
 }
 
@@ -244,11 +249,11 @@ if (-not $loginStatus.IsChatGPT) {
 
 Write-Output ''
 Write-Output 'Restore completed:'
-Write-Output '  model = gpt-5.6-sol'
-Write-Output '  model_reasoning_effort = xhigh'
+Write-Output "  model = $restoredModel"
+Write-Output "  model_reasoning_effort = $restoredReasoning"
 Write-Output '  model_provider = openai'
 Write-Output '  openai_base_url = official default'
-Write-Output '  default speed = Fast (service_tier = priority)'
+Write-Output '  speed setting = preserved from the existing Codex config'
 Write-Output '  GPT route = official ChatGPT/Codex direct'
 Write-Output '  ChatGPT subscription login = active'
 Write-Output '  CLIProxyAPI service autostart = removed'

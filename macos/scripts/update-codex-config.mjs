@@ -18,6 +18,9 @@ const existingSetting = (name) => {
   const match = existing.match(new RegExp(`^\\s*${name}\\s*=\\s*"([^"]*)"\\s*(?:#.*)?$`, "m"));
   return match?.[1] ?? "";
 };
+const configuredProxyModel = existingSetting("model") === "gpt-5.6-sol-1m"
+  ? "gpt-5.6-sol"
+  : existingSetting("model");
 fs.mkdirSync(path.join(stateDirectory, "backups"), { recursive: true, mode: 0o700 });
 const stamp = new Date().toISOString().replaceAll(":", "").replaceAll("-", "").replace(".", "");
 const backupPath = path.join(stateDirectory, "backups", `config-before-${mode}-${stamp}.toml`);
@@ -57,7 +60,7 @@ if (mode === "enable") {
     : [];
   if (models.length === 0) fail("Proxy catalog must contain at least one valid model.");
 
-  const selectedModel = models.find((model) => model.slug === existingSetting("model")) ?? models[0];
+  const selectedModel = models.find((model) => model.slug === configuredProxyModel) ?? models[0];
   const efforts = new Set(
     (selectedModel.supported_reasoning_levels ?? [])
       .map((level) => level?.effort)
@@ -86,10 +89,12 @@ if (mode === "enable") {
     : [];
   if (officialModels.length === 0) fail("Official Codex model catalog must contain at least one valid model.");
 
-  const configuredModel = existingSetting("model") === "gpt-5.6-sol-1m"
-    ? "gpt-5.6-sol"
-    : existingSetting("model");
-  const selectedModel = officialModels.find((model) => model.slug === configuredModel) ?? officialModels[0];
+  const officialAliases = new Map([
+    ["gpt-5.6-sol-1m", "gpt-5.6-sol"],
+    ["gpt-6-astra-1m", "gpt-6-astra"],
+  ]);
+  const configuredOfficialModel = officialAliases.get(existingSetting("model")) ?? existingSetting("model");
+  const selectedModel = officialModels.find((model) => model.slug === configuredOfficialModel) ?? officialModels[0];
   const supportedEfforts = new Set(
     (selectedModel.supported_reasoning_levels ?? [])
       .map((level) => level?.effort)

@@ -48,6 +48,7 @@ const officialConnectRetryDelaysMs = [250, 750];
 const activeUpstreamRequests = new Set();
 const modelAliases = new Map([
   ["gpt-5.6-sol-1m", "gpt-5.6-sol"],
+  ["gpt-6-astra-1m", "gpt-6-astra"],
 ]);
 
 function integerEnv(name, fallback, minimum, maximum) {

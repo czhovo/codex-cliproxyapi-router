@@ -13,7 +13,8 @@ DeepSeek，并允许在两种 GPT 认证路径之间切换。所有本地服务�
 Codex App (built-in provider: openai)
   openai_base_url = http://127.0.0.1:8318/v1
                        |
-                       +-- GET /v1/models ------> 8317 catalog + local transforms
+                       +-- GET /v1/models ------> mode 1: bundled official GPT + 8317 proxy models
+                       |                           mode 2: 8317 catalog; both apply local transforms
                        |
                        +-- GPT, mode 1 ----------> official Codex Responses endpoint
                        |                           (native Codex App credentials)
@@ -26,7 +27,7 @@ Codex App (built-in provider: openai)
 ```
 
 - `8318`：Node.js 兼容层，处理模型目录、路由、模型别名、压缩请求和 Responses SSE。
-- `8317`：官方 CLIProxyAPI `v7.2.119`，处理 DeepSeek API key 与可选的独立 Codex OAuth。
+- `8317`：官方 CLIProxyAPI `v7.2.151`，处理 DeepSeek API key 与可选的独立 Codex OAuth。
 - WebSocket Upgrade 返回 `426`，Codex 使用 HTTP Responses 流。
 
 ## 两种 GPT 模式
@@ -47,21 +48,23 @@ GPT、DeepSeek 和其他代理模型全部走 8318 → 8317。GPT 使用 CLIProx
 登录流程。
 
 模式写入本机 `routing-mode.txt` 并由开机启动流程保留；`/health` 会报告当前模式。
+Mode 1 的 Windows 目录直接读取 Codex 客户端内置官方 GPT 目录并合并 8317 的代理模型，
+因此显示 Astra 不依赖独立 OAuth 账号；Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
 
 ## 模型目录行为
 
 目录由当前上游模型动态生成，不要求任何固定模型必须存在：
 
-- 上游存在 `gpt-5.6-sol` 时，发布两个选择项：
-  - `gpt-5.6-sol` → `GPT 5.6 Sol · 272k`
-  - `gpt-5.6-sol-1m` → `GPT 5.6 Sol · 1.05M`
-- `gpt-5.6-sol-1m` 只是本地目录别名；发送到官方或 8317 前会改写为
-  `gpt-5.6-sol`。它不会改变账号本身的模型权限。
-- 两个 Sol 项保留 GPT 的 `max` / `ultra` 推理强度与 Fast / `priority`，默认速度为
-  Fast。
-- 选择器只发布当前上游实际存在的目标项，并按以下顺序展示：Sol 272k、Sol 1.05M、
-  Terra、Luna、Codex Spark、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使
-  整个目录失败；其他上游模型不进入本项目的选择器。
+- 上游存在 `gpt-6-astra`（或旧目录中至少存在一个可用 GPT 模板）时，发布两个选择项：
+  - `gpt-6-astra` → `GPT 6 Astra · 272k`
+  - `gpt-6-astra-1m` → `GPT 6 Astra · 1.05M`
+- `gpt-6-astra-1m` 是本地目录别名；发送到官方或 8317 前会改写为
+  `gpt-6-astra`。两个 Astra 入口均提供 `low / medium / high / xhigh / max / ultra`。
+- `gpt-5.6-sol` 只发布一个 272k 入口，名称为 `GPT 5.6 Sol`；旧的
+  `gpt-5.6-sol-1m` 配置会自动迁移回 `gpt-5.6-sol`。
+- 选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、Sol、Terra、
+  Luna、Codex Spark、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
+  目录失败；其他上游模型不进入本项目的选择器。
 - 上游存在 `deepseek-v4-flash` 或 `deepseek-v4-pro` 时才发布对应项；二者均为
   1M context、`low / high / max`、默认 `high`，且不声明 Fast / service tier。
 
@@ -106,9 +109,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-CLIPro
 
 安装器会：
 
-1. 从 CLIProxyAPI 官方 GitHub Release 下载固定的 `v7.2.119` Windows x64 包；
+1. 从 CLIProxyAPI 官方 GitHub Release 下载固定的 `v7.2.151` Windows x64 包；
 2. 核对官方 SHA-256
-   `1518a0ffc4f89b609c091f9302c9e3045cffa27e32a4c49f9d211f051de78688`；
+   `976474ec0180701c31fb07a9caa9af9b5cf126dbceecedd883ae1cdc0a8024f0`；
 3. 把通用脚本安装到当前用户的 Codex 数据目录；
 4. 生成随机本地代理 key，创建空的 DeepSeek key 文件并保护 ACL；
 5. 默认在当前用户桌面安装 `enable-cliproxy.cmd` 与 `reset-codex.cmd`。
@@ -141,12 +144,12 @@ cd codex-cliproxyapi-router
 zsh ./macos/Install-CLIProxyAPIRouter.sh
 ```
 
-安装器会根据 `uname -m` 下载并校验固定的 CLIProxyAPI `v7.2.119` 官方包：
+安装器会根据 `uname -m` 下载并校验固定的 CLIProxyAPI `v7.2.151` 官方包：
 
 - Apple Silicon：`darwin_aarch64`，SHA-256
-  `7e9bc444a7defd9ae06dc37f16a6ce73be754656b07324aa3d264a3d01c71175`
+  `9115b9691ceff071735ec1365c2885dca5d4084105de09877f5afdb675f1f815`
 - Intel：`darwin_amd64`，SHA-256
-  `0ab1f1a0751532cf0f36fd396f6a9d74707358bcbfde16f809ffce4bf069f26b`
+  `05d9344b0a39b81ef1d4217b1136964dadfba4a485d18a70564562fef4f6bf98`
 
 它会把脚本安装到当前用户的 `~/.codex/tools/cliproxyapi`，生成仅供本机使用的随机
 client key，创建 `launchd` 配置和桌面双击入口，但不会启动服务、修改
@@ -194,8 +197,10 @@ macOS 无重启启用：
 model_provider = "openai"
 openai_base_url = "http://127.0.0.1:8318/v1"
 model_catalog_json = "<current-user Codex data>/cliproxy-model-catalog.json"
-service_tier = "priority"
 ```
+
+启用和回退脚本不再自动设置速度；现有 `service_tier`（例如 `default` 或 `priority`）
+保持不变。模型和推理强度在新目录仍支持时也保持不变。
 
 ## 回退到官方直连
 
@@ -216,7 +221,8 @@ macOS 无重启执行：
 Reset 会：
 
 - 删除 `openai_base_url` 与 `model_catalog_json` 覆盖；
-- 恢复内置 `openai` provider、`gpt-5.6-sol`、`xhigh`、Fast / `priority`；
+- 恢复内置 `openai` provider，并尽量保留当前 GPT 模型、推理强度与速度；本地长上下文
+  别名会映射回对应的官方模型 ID；
 - 删除本地模型目录与持久化路由模式；
 - 删除 CLIProxyAPI 登录启动项；
 - 停止 8318 与 8317（除非显式使用脚本的 `-KeepProxyRunning`）。

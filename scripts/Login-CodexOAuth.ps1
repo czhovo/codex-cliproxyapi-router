@@ -14,8 +14,8 @@ $ErrorActionPreference = 'Continue'
 $versionOutput = @(& $exePath --help 2>&1 | ForEach-Object { [string]$_ })
 $ErrorActionPreference = $savedPreference
 $versionLine = $versionOutput | Where-Object { $_ -match '^CLIProxyAPI Version:' } | Select-Object -First 1
-if ($versionLine -notmatch 'Version:\s*7\.2\.119\b') {
-    throw 'Codex OAuth login requires the fixed CLIProxyAPI 7.2.119 executable.'
+if ($versionLine -notmatch 'Version:\s*7\.2\.151\b') {
+    throw 'Codex OAuth login requires the fixed CLIProxyAPI 7.2.151 executable.'
 }
 
 $arguments = @('-config', $runtimePath)

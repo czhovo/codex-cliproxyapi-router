@@ -33,8 +33,9 @@ $startupLauncherSource = Join-Path $proxyDir 'CLIProxyAPI-Autostart.vbs'
 $startupFolder = [Environment]::GetFolderPath('Startup')
 $startupLauncherPath = Join-Path $startupFolder 'CLIProxyAPI-Autostart.vbs'
 $middleDot = [char]0x00B7
-$shortContextDisplayName = "GPT 5.6 Sol $middleDot 272k"
-$longContextDisplayName = "GPT 5.6 Sol $middleDot 1.05M"
+$astraShortContextDisplayName = "GPT 6 Astra $middleDot 272k"
+$astraLongContextDisplayName = "GPT 6 Astra $middleDot 1.05M"
+$solDisplayName = 'GPT 5.6 Sol'
 $modeWasExplicit = $PSBoundParameters.ContainsKey('Mode')
 
 function Get-PersistedMode {
@@ -48,9 +49,9 @@ function Resolve-RoutingMode {
     if ($modeWasExplicit) { return $Mode }
     $saved = Get-PersistedMode
     if ($ValidateOnly) { return $(if ($null -ne $saved) { $saved } else { 1 }) }
-    Write-Output 'Select CLIProxyAPI routing mode:'
-    Write-Output '  1 = GPT uses Codex App credentials directly; DeepSeek/other proxy models use CLIProxyAPI'
-    Write-Output '  2 = GPT, DeepSeek, and other proxy models all use CLIProxyAPI; GPT uses independent OAuth'
+    Write-Host 'Select CLIProxyAPI routing mode:'
+    Write-Host '  1 = GPT uses Codex App credentials directly; DeepSeek/other proxy models use CLIProxyAPI'
+    Write-Host '  2 = GPT, DeepSeek, and other proxy models all use CLIProxyAPI; GPT uses independent OAuth'
     do { $answer = (Read-Host 'Enter 1 or 2').Trim() } while ($answer -notin @('1', '2'))
     return [int]$answer
 }
@@ -86,7 +87,6 @@ function New-EnabledConfig([string]$OriginalText, [string]$DefaultModel, [string
         model_provider = 'model_provider = "openai"'
         openai_base_url = 'openai_base_url = "http://127.0.0.1:8318/v1"'
         model_catalog_json = "model_catalog_json = `"$catalogTomlPath`""
-        service_tier = 'service_tier = "priority"'
     }
     $lines = [System.Text.RegularExpressions.Regex]::Split($OriginalText, '\r?\n')
     $foundSettings = @{}
@@ -121,7 +121,7 @@ function New-EnabledConfig([string]$OriginalText, [string]$DefaultModel, [string
     return ($enabledLines -join "`r`n").TrimEnd() + "`r`n"
 }
 
-$selectedMode = Resolve-RoutingMode
+[int]$selectedMode = Resolve-RoutingMode
 $requiredFiles = @(
     $configPath, $keyPath, $startScript, $stopScript, $loginScript, $credentialProtectorPath,
     $runtimeTemplatePath, $compatScriptPath, $clientKeyPath, $startupLauncherSource
@@ -194,26 +194,33 @@ try {
     $catalog = [System.IO.File]::ReadAllText($catalogPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
     $models = @($catalog.models)
     $modelIds = @($models | ForEach-Object { $_.slug })
-    if (@('gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini') | Where-Object { $_ -in $modelIds }) {
-        throw 'Generated model catalog still contains a hidden legacy GPT model.'
+    $visibleModelIds = @(
+        'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
+        'gpt-5.3-codex-spark', 'deepseek-v4-flash', 'deepseek-v4-pro'
+    )
+    if (@($modelIds | Where-Object { $_ -notin $visibleModelIds }).Count -ne 0) {
+        throw 'Generated model catalog contains a model outside the supported picker list.'
     }
 
-    $shortGpt = $models | Where-Object { $_.slug -eq 'gpt-5.6-sol' } | Select-Object -First 1
-    $longGpt = $models | Where-Object { $_.slug -eq 'gpt-5.6-sol-1m' } | Select-Object -First 1
-    if ($null -ne $shortGpt) {
-        $shortReasoning = @(Get-ReasoningLevels -Model $shortGpt)
-        $longReasoning = @(Get-ReasoningLevels -Model $longGpt)
-        if ($null -eq $longGpt -or $shortGpt.display_name -ne $shortContextDisplayName -or
-            $longGpt.display_name -ne $longContextDisplayName -or $shortGpt.context_window -ne 272000 -or
-            $longGpt.context_window -ne 921000 -or 'max' -notin $shortReasoning -or 'ultra' -notin $shortReasoning -or
-            'max' -notin $longReasoning -or 'ultra' -notin $longReasoning -or
-            'priority' -notin @($shortGpt.service_tiers | ForEach-Object { $_.id }) -or
-            'priority' -notin @($longGpt.service_tiers | ForEach-Object { $_.id }) -or
-            $shortGpt.default_service_tier -ne 'priority' -or $longGpt.default_service_tier -ne 'priority') {
-            throw 'Conditional GPT-5.6 Sol catalog validation failed.'
+    $astraShort = $models | Where-Object { $_.slug -eq 'gpt-6-astra' } | Select-Object -First 1
+    $astraLong = $models | Where-Object { $_.slug -eq 'gpt-6-astra-1m' } | Select-Object -First 1
+    if ($null -ne $astraShort) {
+        if ($null -eq $astraLong -or $astraShort.display_name -ne $astraShortContextDisplayName -or
+            $astraLong.display_name -ne $astraLongContextDisplayName -or $astraShort.context_window -ne 272000 -or
+            $astraLong.context_window -ne 921000 -or 'ultra' -notin @(Get-ReasoningLevels -Model $astraShort) -or
+            'ultra' -notin @(Get-ReasoningLevels -Model $astraLong)) {
+            throw 'Conditional GPT-6 Astra catalog validation failed.'
         }
     }
-    elseif ($null -ne $longGpt) { throw 'Long-context Sol alias exists without an upstream Sol base model.' }
+    elseif ($null -ne $astraLong) { throw 'Long-context Astra alias exists without an Astra base model.' }
+
+    $sol = $models | Where-Object { $_.slug -eq 'gpt-5.6-sol' } | Select-Object -First 1
+    $removedSolLong = $models | Where-Object { $_.slug -eq 'gpt-5.6-sol-1m' } | Select-Object -First 1
+    if ($null -ne $sol -and ($sol.display_name -ne $solDisplayName -or $sol.context_window -ne 272000 -or
+        'max' -notin @(Get-ReasoningLevels -Model $sol) -or 'ultra' -notin @(Get-ReasoningLevels -Model $sol))) {
+        throw 'Conditional GPT-5.6 Sol catalog validation failed.'
+    }
+    if ($null -ne $removedSolLong) { throw 'Removed long-context Sol alias remains in the generated catalog.' }
 
     foreach ($deepSeekId in @('deepseek-v4-flash', 'deepseek-v4-pro')) {
         $deepSeek = $models | Where-Object { $_.slug -eq $deepSeekId } | Select-Object -First 1
@@ -228,16 +235,14 @@ try {
 
     $currentModelMatch = [Regex]::Match($configText, '(?m)^model\s*=\s*"([^"]+)"\s*$')
     $currentModel = if ($currentModelMatch.Success) { $currentModelMatch.Groups[1].Value } else { '' }
-    if ($null -ne $shortGpt) { $defaultModel = 'gpt-5.6-sol' }
-    elseif ($currentModel -in $modelIds) { $defaultModel = $currentModel }
-    else {
-        $priorityModel = $models | Where-Object { 'priority' -in @($_.service_tiers | ForEach-Object { $_.id }) } | Select-Object -First 1
-        $defaultModel = if ($null -ne $priorityModel) { [string]$priorityModel.slug } else { [string]($models | Select-Object -First 1).slug }
-    }
+    if ($currentModel -eq 'gpt-5.6-sol-1m') { $currentModel = 'gpt-5.6-sol' }
+    $defaultModel = if ($currentModel -in $modelIds) { $currentModel } else { [string]($models | Select-Object -First 1).slug }
     if ([string]::IsNullOrWhiteSpace($defaultModel)) { throw 'Dynamic upstream catalog contains no selectable model.' }
     $defaultModelObject = $models | Where-Object { $_.slug -eq $defaultModel } | Select-Object -First 1
     $availableReasoning = @(Get-ReasoningLevels -Model $defaultModelObject)
-    if ('xhigh' -in $availableReasoning) { $defaultReasoning = 'xhigh' }
+    $currentReasoningMatch = [Regex]::Match($configText, '(?m)^model_reasoning_effort\s*=\s*"([^"]+)"\s*$')
+    $currentReasoning = if ($currentReasoningMatch.Success) { $currentReasoningMatch.Groups[1].Value } else { '' }
+    if ($currentReasoning -in $availableReasoning) { $defaultReasoning = $currentReasoning }
     elseif (-not [string]::IsNullOrWhiteSpace([string]$defaultModelObject.default_reasoning_level)) { $defaultReasoning = [string]$defaultModelObject.default_reasoning_level }
     elseif ($availableReasoning.Count -gt 0) { $defaultReasoning = [string]$availableReasoning[0] }
     else { $defaultReasoning = 'medium' }
@@ -245,8 +250,7 @@ try {
     $enabledText = New-EnabledConfig -OriginalText $configText -DefaultModel $defaultModel -DefaultReasoning $defaultReasoning
     $catalogSettingPattern = '(?m)^model_catalog_json = "' + [Regex]::Escape($catalogPath.Replace('\', '/')) + '"\r?$'
     if ($enabledText -notmatch '(?m)^openai_base_url = "http://127\.0\.0\.1:8318/v1"\r?$' -or
-        $enabledText -notmatch $catalogSettingPattern -or
-        $enabledText -notmatch '(?m)^service_tier = "priority"\r?$') {
+        $enabledText -notmatch $catalogSettingPattern) {
         throw 'Enabled config failed final validation.'
     }
     [System.IO.File]::WriteAllText($configPath, $enabledText, (New-Object System.Text.UTF8Encoding($false)))
@@ -282,8 +286,8 @@ else {
     Write-Output '  GPT = CLIProxyAPI 8317 independent OAuth through 8318'
 }
 Write-Output '  DeepSeek/other proxy models = CLIProxyAPI 8317 through 8318'
-Write-Output '  model catalog = dynamic; Sol 272k/1.05M and DeepSeek transforms are conditional'
-Write-Output '  default speed = Fast (service_tier = priority)'
+Write-Output '  model catalog = dynamic; Astra 272k/1.05M, Sol, and DeepSeek transforms are conditional'
+Write-Output '  speed setting = preserved from the existing Codex config'
 Write-Output "  persisted mode = $modePath"
 Write-Output "  pre-enable config backup = $backupPath"
 if (-not $NoRestart) {

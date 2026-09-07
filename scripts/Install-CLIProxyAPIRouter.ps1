@@ -7,9 +7,9 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
-$cliProxyVersion = '7.2.119'
+$cliProxyVersion = '7.2.151'
 $archiveName = "CLIProxyAPI_${cliProxyVersion}_windows_amd64.zip"
-$expectedSha256 = '1518a0ffc4f89b609c091f9302c9e3045cffa27e32a4c49f9d211f051de78688'
+$expectedSha256 = '976474ec0180701c31fb07a9caa9af9b5cf126dbceecedd883ae1cdc0a8024f0'
 $downloadUri = "https://github.com/router-for-me/CLIProxyAPI/releases/download/v${cliProxyVersion}/$archiveName"
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $codexHome = Join-Path $env:USERPROFILE '.codex'

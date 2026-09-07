@@ -68,6 +68,7 @@ const path = process.argv[2];
 const reasoning = ["low", "medium", "high", "xhigh", "max", "ultra"].map((effort) => ({ effort }));
 const priority = [{ id: "priority", name: "Fast" }];
 const models = [
+  { slug: "gpt-6-astra", display_name: "Astra", context_window: 921000, default_reasoning_level: "medium", supported_reasoning_levels: reasoning.slice(0, 5), service_tiers: priority },
   { slug: "gpt-5.6-sol", display_name: "Sol", context_window: 272000, supported_reasoning_levels: reasoning, service_tiers: priority },
   { slug: "gpt-5.6-terra", display_name: "Terra", supported_reasoning_levels: reasoning, service_tiers: priority },
   { slug: "gpt-5.6-luna", display_name: "Luna", supported_reasoning_levels: reasoning, service_tiers: priority },
@@ -86,8 +87,9 @@ NODE
 const fs = require("node:fs");
 const catalog = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const expected = [
-  ["gpt-5.6-sol", "GPT 5.6 Sol · 272k"],
-  ["gpt-5.6-sol-1m", "GPT 5.6 Sol · 1.05M"],
+  ["gpt-6-astra", "GPT 6 Astra · 272k"],
+  ["gpt-6-astra-1m", "GPT 6 Astra · 1.05M"],
+  ["gpt-5.6-sol", "GPT 5.6 Sol"],
   ["gpt-5.6-terra", "GPT 5.6 Terra"],
   ["gpt-5.6-luna", "GPT 5.6 Luna"],
   ["gpt-5.3-codex-spark", "GPT 5.3 Codex Spark"],
@@ -96,10 +98,18 @@ const expected = [
 ];
 const actual = catalog.models.map(({ slug, display_name }) => [slug, display_name]);
 if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("macOS model picker list mismatch");
+const shortAstra = catalog.models.find((model) => model.slug === "gpt-6-astra");
+const longAstra = catalog.models.find((model) => model.slug === "gpt-6-astra-1m");
 const shortSol = catalog.models.find((model) => model.slug === "gpt-5.6-sol");
-const longSol = catalog.models.find((model) => model.slug === "gpt-5.6-sol-1m");
+if (shortAstra.context_window !== 272000 || shortAstra.max_context_window !== 272000) throw new Error("272k Astra mismatch");
+if (longAstra.context_window !== 921000 || longAstra.max_context_window !== 921000) throw new Error("1.05M Astra mismatch");
+for (const model of [shortAstra, longAstra]) {
+  if (model.supported_reasoning_levels.map((level) => level.effort).join(",") !== "low,medium,high,xhigh,max,ultra") {
+    throw new Error(`${model.slug} reasoning levels mismatch`);
+  }
+}
 if (shortSol.context_window !== 272000 || shortSol.max_context_window !== 272000) throw new Error("272k Sol mismatch");
-if (longSol.context_window !== 921000 || longSol.max_context_window !== 921000) throw new Error("1.05M Sol mismatch");
+if (catalog.models.some((model) => model.slug === "gpt-5.6-sol-1m")) throw new Error("removed Sol 1.05M alias remains");
 for (const slug of ["deepseek-v4-flash", "deepseek-v4-pro"]) {
   const model = catalog.models.find((entry) => entry.slug === slug);
   if (model.default_reasoning_level !== "high") throw new Error(`${slug} default reasoning mismatch`);
@@ -118,8 +128,8 @@ cp "$test_dir/source.json" "$test_dir/state/openai-models.json"
 require("node:fs").writeFileSync(
   process.argv[2],
   [
-    'model = "gpt-5.6-sol"',
-    'model_reasoning_effort = "xhigh"',
+    'model = "gpt-6-astra-1m"',
+    'model_reasoning_effort = "max"',
     'model_provider = "openai"',
     'service_tier = "default"',
     'openai_base_url = "https://example.invalid/v1"',
@@ -138,8 +148,8 @@ NODE
 "$node_path" - "$test_dir/config.toml" <<'NODE'
 const config = require("node:fs").readFileSync(process.argv[2], "utf8");
 if (!/^service_tier = "default"$/m.test(config)) throw new Error("enable changed the configured speed tier");
-if (!/^model = "gpt-5\.6-sol"$/m.test(config)) throw new Error("enable changed the selected model");
-if (!/^model_reasoning_effort = "xhigh"$/m.test(config)) throw new Error("enable changed reasoning effort");
+if (!/^model = "gpt-6-astra-1m"$/m.test(config)) throw new Error("enable changed the selected model");
+if (!/^model_reasoning_effort = "max"$/m.test(config)) throw new Error("enable changed reasoning effort");
 if (!/^approval_policy = "never"$/m.test(config) || !/^\[features\]$/m.test(config)) {
   throw new Error("enable did not preserve unrelated settings");
 }
@@ -152,14 +162,14 @@ if (!/^service_tier = "default"$/m.test(config)) throw new Error("reset changed 
 if (/^\s*(?:openai_base_url|model_catalog_json)\s*=/m.test(config)) {
   throw new Error("reset retained proxy-only settings");
 }
-if (!/^model = "gpt-5\.6-sol"$/m.test(config)) throw new Error("reset changed the selected model");
-if (!/^model_reasoning_effort = "xhigh"$/m.test(config)) throw new Error("reset changed reasoning effort");
+if (!/^model = "gpt-6-astra"$/m.test(config)) throw new Error("reset did not map the Astra alias to the official model");
+if (!/^model_reasoning_effort = "max"$/m.test(config)) throw new Error("reset changed reasoning effort");
 NODE
 
 "$node_path" - "$test_dir/no-sol.json" <<'NODE'
 require("node:fs").writeFileSync(
   process.argv[2],
-  JSON.stringify({ models: [{ slug: "gpt-5.6-luna", display_name: "Luna", service_tiers: [{ id: "priority" }] }] }),
+  JSON.stringify({ models: [{ slug: "gpt-5.6-luna", display_name: "Luna", supported_reasoning_levels: ["low", "medium", "high", "xhigh", "max"].map((effort) => ({ effort })), service_tiers: [{ id: "priority" }] }] }),
   "utf8",
 );
 NODE
@@ -167,7 +177,11 @@ NODE
   forward "$test_dir/no-sol.json" "$test_dir/no-sol-catalog.json"
 "$node_path" - "$test_dir/no-sol-catalog.json" <<'NODE'
 const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8")).models;
-if (models.length !== 1 || models[0].slug !== "gpt-5.6-luna") throw new Error("catalog must remain dynamic without Sol");
+const slugs = models.map((model) => model.slug);
+if (slugs.join(",") !== "gpt-6-astra,gpt-6-astra-1m,gpt-5.6-luna") throw new Error("Astra fallback catalog mismatch");
+for (const model of models.filter((entry) => entry.slug.startsWith("gpt-6-astra"))) {
+  if (!model.supported_reasoning_levels.some((level) => level.effort === "ultra")) throw new Error("Astra fallback lacks ultra");
+}
 NODE
 
 "$node_path" - "$repository_root" <<'NODE'
