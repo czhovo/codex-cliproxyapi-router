@@ -68,7 +68,7 @@ if ($routingMode -eq '1') {
 }
 
 $visibleSourceModelIds = @(
-    'gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.3-codex-spark',
+    'gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
     'deepseek-v4-flash', 'deepseek-v4-pro'
 )
 $astraModelId = 'gpt-6-astra'
@@ -122,7 +122,6 @@ if (@($sourceModels | Where-Object { $_.slug -eq $astraModelId }).Count -eq 0) {
 $displayNames = @{
     'gpt-5.6-terra' = 'GPT 5.6 Terra'
     'gpt-5.6-luna' = 'GPT 5.6 Luna'
-    'gpt-5.3-codex-spark' = 'GPT 5.3 Codex Spark'
     'deepseek-v4-flash' = 'DeepSeek V4 Flash'
     'deepseek-v4-pro' = 'DeepSeek V4 Pro'
 }
@@ -211,7 +210,7 @@ Set-ModelProperty -Model $catalog -Name 'models' -Value $models
 $pickerIds = @($models | ForEach-Object { $_.slug })
 $visiblePickerModelIds = @(
     'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
-    'gpt-5.3-codex-spark', 'deepseek-v4-flash', 'deepseek-v4-pro'
+    'deepseek-v4-flash', 'deepseek-v4-pro'
 )
 if (@($pickerIds | Where-Object { $_ -notin $visiblePickerModelIds }).Count -ne 0) {
     throw 'A model outside the supported picker list remains in the generated catalog.'

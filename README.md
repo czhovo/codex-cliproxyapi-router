@@ -49,7 +49,7 @@ GPT、DeepSeek 和其他代理模型全部走 8318 → 8317。GPT 使用 CLIProx
 
 模式写入本机 `routing-mode.txt` 并由开机启动流程保留；`/health` 会报告当前模式。
 Mode 1 的 Windows 目录直接读取 Codex 客户端内置官方 GPT 目录，并合并 8317 额外发布且
-未重复的模型，因此显示 Astra 不依赖独立 OAuth，同时不会丢失 8317 独有的 Codex Spark；
+未重复的模型，因此显示 Astra 不依赖独立 OAuth；
 Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
 
 ## 模型目录行为
@@ -64,7 +64,7 @@ Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
 - `gpt-5.6-sol` 只发布一个 272k 入口，名称为 `GPT 5.6 Sol`；旧的
   `gpt-5.6-sol-1m` 配置会自动迁移回 `gpt-5.6-sol`。
 - 选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、Sol、Terra、
-  Luna、Codex Spark、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
+  Luna、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
   目录失败；其他上游模型不进入本项目的选择器。
 - 上游存在 `deepseek-v4-flash` 或 `deepseek-v4-pro` 时才发布对应项；二者均为
   1M context、`low / high / max`、默认 `high`，且不声明 Fast / service tier。

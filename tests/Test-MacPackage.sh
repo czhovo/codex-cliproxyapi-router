@@ -92,7 +92,6 @@ const expected = [
   ["gpt-5.6-sol", "GPT 5.6 Sol"],
   ["gpt-5.6-terra", "GPT 5.6 Terra"],
   ["gpt-5.6-luna", "GPT 5.6 Luna"],
-  ["gpt-5.3-codex-spark", "GPT 5.3 Codex Spark"],
   ["deepseek-v4-flash", "DeepSeek V4 Flash"],
   ["deepseek-v4-pro", "DeepSeek V4 Pro"],
 ];
@@ -135,7 +134,7 @@ const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8
 const slugs = models.map((model) => model.slug);
 const expected = [
   "gpt-6-astra", "gpt-6-astra-1m", "gpt-5.6-sol", "gpt-5.6-terra",
-  "gpt-5.6-luna", "gpt-5.3-codex-spark", "deepseek-v4-flash", "deepseek-v4-pro",
+  "gpt-5.6-luna", "deepseek-v4-flash", "deepseek-v4-pro",
 ];
 if (JSON.stringify(slugs) !== JSON.stringify(expected)) throw new Error("mode 1 supplemental proxy model merge mismatch");
 NODE

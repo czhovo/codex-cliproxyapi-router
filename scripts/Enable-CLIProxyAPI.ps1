@@ -196,7 +196,7 @@ try {
     $modelIds = @($models | ForEach-Object { $_.slug })
     $visibleModelIds = @(
         'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
-        'gpt-5.3-codex-spark', 'deepseek-v4-flash', 'deepseek-v4-pro'
+        'deepseek-v4-flash', 'deepseek-v4-pro'
     )
     if (@($modelIds | Where-Object { $_ -notin $visibleModelIds }).Count -ne 0) {
         throw 'Generated model catalog contains a model outside the supported picker list.'
