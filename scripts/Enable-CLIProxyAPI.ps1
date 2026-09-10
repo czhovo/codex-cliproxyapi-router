@@ -196,7 +196,7 @@ try {
     $modelIds = @($models | ForEach-Object { $_.slug })
     $visibleModelIds = @(
         'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
-        'deepseek-v4-flash', 'deepseek-v4-pro'
+        'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
     )
     if (@($modelIds | Where-Object { $_ -notin $visibleModelIds }).Count -ne 0) {
         throw 'Generated model catalog contains a model outside the supported picker list.'
@@ -222,7 +222,7 @@ try {
     }
     if ($null -ne $removedSolLong) { throw 'Removed long-context Sol alias remains in the generated catalog.' }
 
-    foreach ($deepSeekId in @('deepseek-v4-flash', 'deepseek-v4-pro')) {
+    foreach ($deepSeekId in @('deepseek-v4.1-flash', 'deepseek-v4.1-pro')) {
         $deepSeek = $models | Where-Object { $_.slug -eq $deepSeekId } | Select-Object -First 1
         if ($null -eq $deepSeek) { continue }
         if ((@(Get-ReasoningLevels -Model $deepSeek) -join ',') -ne 'low,high,max' -or

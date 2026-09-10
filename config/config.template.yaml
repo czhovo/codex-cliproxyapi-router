@@ -46,17 +46,17 @@ openai-compatibility:
     api-key-entries:
       - api-key: "__DEEPSEEK_API_KEY__"
     models:
-      - name: "deepseek-v4-flash"
-        alias: "deepseek-v4-flash"
-        display-name: "DeepSeek V4 Flash"
+      - name: "deepseek-flash"
+        alias: "deepseek-v4.1-flash"
+        display-name: "DeepSeek V4.1 Flash"
         max-context-length: 1000000
         input-modalities: [text]
         output-modalities: [text]
         thinking:
           levels: ["low", "high", "max"]
-      - name: "deepseek-v4-pro"
-        alias: "deepseek-v4-pro"
-        display-name: "DeepSeek V4 Pro"
+      - name: "deepseek-pro"
+        alias: "deepseek-v4.1-pro"
+        display-name: "DeepSeek V4.1 Pro"
         max-context-length: 1000000
         input-modalities: [text]
         output-modalities: [text]
@@ -66,10 +66,10 @@ openai-compatibility:
 payload:
   filter:
     - models:
-        - name: "deepseek-v4-flash"
+        - name: "deepseek-v4.1-flash"
           protocol: "openai"
           from-protocol: "responses"
-        - name: "deepseek-v4-pro"
+        - name: "deepseek-v4.1-pro"
           protocol: "openai"
           from-protocol: "responses"
       params:

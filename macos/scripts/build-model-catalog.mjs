@@ -144,7 +144,7 @@ if (solIndex !== -1) {
 }
 catalog.models = catalog.models.filter((model) => model.slug !== solLargeSlug);
 
-const deepSeekModels = ["deepseek-v4-flash", "deepseek-v4-pro"].map((slug) =>
+const deepSeekModels = ["deepseek-v4.1-flash", "deepseek-v4.1-pro"].map((slug) =>
   catalog.models.find((model) => model.slug === slug),
 );
 
@@ -154,8 +154,8 @@ const visibleModelOrder = [
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
-  "deepseek-v4-flash",
-  "deepseek-v4-pro",
+  "deepseek-v4.1-flash",
+  "deepseek-v4.1-pro",
 ];
 const displayNames = new Map([
   ["gpt-6-astra", "GPT 6 Astra · 272k"],
@@ -163,8 +163,8 @@ const displayNames = new Map([
   ["gpt-5.6-sol", "GPT 5.6 Sol"],
   ["gpt-5.6-terra", "GPT 5.6 Terra"],
   ["gpt-5.6-luna", "GPT 5.6 Luna"],
-  ["deepseek-v4-flash", "DeepSeek V4 Flash"],
-  ["deepseek-v4-pro", "DeepSeek V4 Pro"],
+  ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash"],
+  ["deepseek-v4.1-pro", "DeepSeek V4.1 Pro"],
 ]);
 const modelsBySlug = new Map(catalog.models.map((model) => [model.slug, model]));
 catalog.models = visibleModelOrder

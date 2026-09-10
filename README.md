@@ -66,7 +66,11 @@ Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
 - 选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、Sol、Terra、
   Luna、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
   目录失败；其他上游模型不进入本项目的选择器。
-- 上游存在 `deepseek-v4-flash` 或 `deepseek-v4-pro` 时才发布对应项；二者均为
+- CLIProxyAPI 目录存在 `deepseek-v4.1-flash` 或 `deepseek-v4.1-pro` 时才发布对应项；菜单名称分别为
+  `DeepSeek V4.1 Flash` 和 `DeepSeek V4.1 Pro`，CLIProxyAPI 会将它们映射为上游
+  `deepseek-flash` 和预留的 `deepseek-pro`。Flash 是 DeepSeek 当前官方目录中的
+  可用模型；Pro 在正式发布前仅保留菜单入口，请求允许返回上游当前的未知模型类错误，
+  且不会误路由到旧的 `deepseek-v4-pro`。二者均为
   1M context、`low / high / max`、默认 `high`，且不声明 Fast / service tier。
 
 ## 稳定性与安全处理

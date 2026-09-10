@@ -69,7 +69,7 @@ if ($routingMode -eq '1') {
 
 $visibleSourceModelIds = @(
     'gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
-    'deepseek-v4-flash', 'deepseek-v4-pro'
+    'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
 )
 $astraModelId = 'gpt-6-astra'
 $astraLongContextModelId = 'gpt-6-astra-1m'
@@ -122,8 +122,8 @@ if (@($sourceModels | Where-Object { $_.slug -eq $astraModelId }).Count -eq 0) {
 $displayNames = @{
     'gpt-5.6-terra' = 'GPT 5.6 Terra'
     'gpt-5.6-luna' = 'GPT 5.6 Luna'
-    'deepseek-v4-flash' = 'DeepSeek V4 Flash'
-    'deepseek-v4-pro' = 'DeepSeek V4 Pro'
+    'deepseek-v4.1-flash' = 'DeepSeek V4.1 Flash'
+    'deepseek-v4.1-pro' = 'DeepSeek V4.1 Pro'
 }
 
 $deepSeekReasoningLevels = [object[]]@(
@@ -189,7 +189,7 @@ foreach ($model in $sourceModels) {
         continue
     }
 
-    if ($model.slug -in @('deepseek-v4-flash', 'deepseek-v4-pro')) {
+    if ($model.slug -in @('deepseek-v4.1-flash', 'deepseek-v4.1-pro')) {
         Set-ModelProperty -Model $model -Name 'context_window' -Value 1000000
         Set-ModelProperty -Model $model -Name 'max_context_window' -Value 1000000
         Set-ModelProperty -Model $model -Name 'effective_context_window_percent' -Value 95
@@ -210,7 +210,7 @@ Set-ModelProperty -Model $catalog -Name 'models' -Value $models
 $pickerIds = @($models | ForEach-Object { $_.slug })
 $visiblePickerModelIds = @(
     'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
-    'deepseek-v4-flash', 'deepseek-v4-pro'
+    'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
 )
 if (@($pickerIds | Where-Object { $_ -notin $visiblePickerModelIds }).Count -ne 0) {
     throw 'A model outside the supported picker list remains in the generated catalog.'
@@ -246,7 +246,7 @@ elseif ($null -ne $solModel -or $removedSolLongContextModelId -in $pickerIds) {
     throw 'GPT-5.6 Sol was generated without an upstream base model.'
 }
 
-foreach ($deepSeekId in @('deepseek-v4-flash', 'deepseek-v4-pro')) {
+foreach ($deepSeekId in @('deepseek-v4.1-flash', 'deepseek-v4.1-pro')) {
     $deepSeekModel = $models | Where-Object { $_.slug -eq $deepSeekId } | Select-Object -First 1
     if ($null -eq $deepSeekModel) { continue }
     $actualReasoning = @(Get-ReasoningLevels -Model $deepSeekModel)

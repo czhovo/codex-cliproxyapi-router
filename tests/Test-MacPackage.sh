@@ -48,6 +48,22 @@ template="$repository_root/config/config.template.yaml"
 for placeholder in __AUTH_DIR__ __LOCAL_PROXY_KEY__ __DEEPSEEK_API_KEY__; do
   /usr/bin/grep -Fq "$placeholder" "$template" || { print -u2 -- "Missing placeholder: $placeholder"; exit 1; }
 done
+"$node_path" - "$template" <<'NODE'
+const template = require("node:fs").readFileSync(process.argv[2], "utf8");
+const expectedMappings = [
+  ['name: "deepseek-flash"', 'alias: "deepseek-v4.1-flash"', 'display-name: "DeepSeek V4.1 Flash"'],
+  ['name: "deepseek-pro"', 'alias: "deepseek-v4.1-pro"', 'display-name: "DeepSeek V4.1 Pro"'],
+];
+for (const fields of expectedMappings) {
+  const positions = fields.map((field) => template.indexOf(field));
+  if (positions.some((position) => position < 0) || positions.some((position, index) => index > 0 && position < positions[index - 1])) {
+    throw new Error(`DeepSeek model mapping mismatch: ${fields.join(" -> ")}`);
+  }
+}
+for (const oldSlug of ['deepseek-v4-flash', 'name: "deepseek-v4-pro"']) {
+  if (template.includes(oldSlug)) throw new Error(`Retired DeepSeek alias remains: ${oldSlug}`);
+}
+NODE
 /usr/bin/grep -Eq '^host: "127\.0\.0\.1"$' "$template"
 /usr/bin/grep -Eq '^  disable-codex-cloaking: true$' "$template"
 /usr/bin/grep -Eq '^cliproxy_ready_timeout_seconds=120$' \
@@ -78,8 +94,8 @@ const models = [
   { slug: "gpt-5.3-codex-spark", display_name: "Spark", supported_reasoning_levels: reasoning, service_tiers: priority },
   { slug: "gpt-5.5", display_name: "Hidden" },
   { slug: "codex-auto-review", display_name: "Hidden" },
-  { slug: "deepseek-v4-flash", display_name: "Flash" },
-  { slug: "deepseek-v4-pro", display_name: "Pro" },
+  { slug: "deepseek-v4.1-flash", display_name: "Flash" },
+  { slug: "deepseek-v4.1-pro", display_name: "Pro" },
 ];
 fs.writeFileSync(path, JSON.stringify({ models }), "utf8");
 NODE
@@ -95,8 +111,8 @@ const expected = [
   ["gpt-5.6-sol", "GPT 5.6 Sol"],
   ["gpt-5.6-terra", "GPT 5.6 Terra"],
   ["gpt-5.6-luna", "GPT 5.6 Luna"],
-  ["deepseek-v4-flash", "DeepSeek V4 Flash"],
-  ["deepseek-v4-pro", "DeepSeek V4 Pro"],
+  ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash"],
+  ["deepseek-v4.1-pro", "DeepSeek V4.1 Pro"],
 ];
 const actual = catalog.models.map(({ slug, display_name }) => [slug, display_name]);
 if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("macOS model picker list mismatch");
@@ -112,7 +128,7 @@ for (const model of [shortAstra, longAstra]) {
 }
 if (shortSol.context_window !== 272000 || shortSol.max_context_window !== 272000) throw new Error("272k Sol mismatch");
 if (catalog.models.some((model) => model.slug === "gpt-5.6-sol-1m")) throw new Error("removed Sol 1.05M alias remains");
-for (const slug of ["deepseek-v4-flash", "deepseek-v4-pro"]) {
+for (const slug of ["deepseek-v4.1-flash", "deepseek-v4.1-pro"]) {
   const model = catalog.models.find((entry) => entry.slug === slug);
   if (model.default_reasoning_level !== "high") throw new Error(`${slug} default reasoning mismatch`);
   if (model.supported_reasoning_levels.map((level) => level.effort).join(",") !== "low,high,max") {
@@ -137,7 +153,7 @@ const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8
 const slugs = models.map((model) => model.slug);
 const expected = [
   "gpt-6-astra", "gpt-6-astra-1m", "gpt-5.6-sol", "gpt-5.6-terra",
-  "gpt-5.6-luna", "deepseek-v4-flash", "deepseek-v4-pro",
+  "gpt-5.6-luna", "deepseek-v4.1-flash", "deepseek-v4.1-pro",
 ];
 if (JSON.stringify(slugs) !== JSON.stringify(expected)) throw new Error("mode 1 supplemental proxy model merge mismatch");
 NODE

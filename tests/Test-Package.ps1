@@ -47,6 +47,20 @@ $template = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'config\con
 foreach ($placeholder in @('__LOCAL_PROXY_KEY__', '__DEEPSEEK_API_KEY__', '__AUTH_DIR__')) {
     if (-not $template.Contains($placeholder)) { throw "Configuration template is missing $placeholder." }
 }
+foreach ($mapping in @(
+    @{ Name = 'deepseek-flash'; Alias = 'deepseek-v4.1-flash'; DisplayName = 'DeepSeek V4.1 Flash' },
+    @{ Name = 'deepseek-pro'; Alias = 'deepseek-v4.1-pro'; DisplayName = 'DeepSeek V4.1 Pro' }
+)) {
+    $nameIndex = $template.IndexOf("name: `"$($mapping.Name)`"")
+    $aliasIndex = $template.IndexOf("alias: `"$($mapping.Alias)`"", $nameIndex + 1)
+    $displayIndex = $template.IndexOf("display-name: `"$($mapping.DisplayName)`"", $aliasIndex + 1)
+    if ($nameIndex -lt 0 -or $aliasIndex -lt 0 -or $displayIndex -lt 0) {
+        throw "DeepSeek model mapping is missing or out of order: $($mapping.Alias) -> $($mapping.Name)."
+    }
+}
+foreach ($retiredAlias in @('deepseek-v4-flash', 'name: "deepseek-v4-pro"')) {
+    if ($template.Contains($retiredAlias)) { throw "Retired DeepSeek alias remains: $retiredAlias" }
+}
 if ($template -notmatch '(?m)^host:\s*"127\.0\.0\.1"\s*$' -or
     $template -notmatch '(?m)^\s*disable-codex-cloaking:\s*true\s*$') {
     throw 'Configuration template loopback or Codex-cloaking safety validation failed.'
