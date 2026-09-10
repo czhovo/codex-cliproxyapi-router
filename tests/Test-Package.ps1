@@ -6,6 +6,7 @@ $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $requiredFiles = @(
     '.gitignore', 'README.md', 'SECURITY.md', 'THIRD_PARTY_NOTICES.md',
     'config\config.template.yaml', 'src\codex-catalog-compat.mjs',
+    'tests\Test-StreamingTerminals.mjs',
     'scripts\Install-CLIProxyAPIRouter.ps1', 'scripts\Enable-CLIProxyAPI.ps1',
     'scripts\Restore-GPT56Sol-ChatGPT.ps1', 'scripts\Restart-CodexApp.ps1',
     'scripts\Start-CLIProxyAPI.ps1', 'scripts\Stop-CLIProxyAPI.ps1',
@@ -39,6 +40,8 @@ $node = Get-Command 'node.exe' -CommandType Application -ErrorAction SilentlyCon
 if ($null -eq $node) { throw 'Node.js was not found on PATH.' }
 & $node.Source --check (Join-Path $repositoryRoot 'src\codex-catalog-compat.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Node.js syntax validation failed.' }
+& $node.Source (Join-Path $repositoryRoot 'tests\Test-StreamingTerminals.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Streaming terminal handling validation failed.' }
 
 $template = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'config\config.template.yaml'), [System.Text.Encoding]::UTF8)
 foreach ($placeholder in @('__LOCAL_PROXY_KEY__', '__DEEPSEEK_API_KEY__', '__AUTH_DIR__')) {

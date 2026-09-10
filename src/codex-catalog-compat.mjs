@@ -46,6 +46,14 @@ const officialHttpsAgent = new https.Agent(agentOptions);
 const localHttpAgent = new http.Agent(agentOptions);
 const officialConnectRetryDelaysMs = [250, 750];
 const activeUpstreamRequests = new Set();
+const responseOutcomeCounters = {
+  completed: 0,
+  failed: 0,
+  incomplete: 0,
+  transport_error: 0,
+  http_error: 0,
+  client_closed: 0,
+};
 const modelAliases = new Map([
   ["gpt-5.6-sol-1m", "gpt-5.6-sol"],
   ["gpt-6-astra-1m", "gpt-6-astra"],
@@ -307,59 +315,143 @@ function sendJsonError(response, statusCode, code, message) {
   }
 }
 
+const responseTerminalEvents = new Set([
+  "response.completed",
+  "response.failed",
+  "response.incomplete",
+  "error",
+]);
+
 class ResponsesCompletionTracker {
   constructor() {
     this.decoder = new StringDecoder("utf8");
     this.lineBuffer = "";
     this.scanBuffer = "";
-    this.seen = false;
+    this.terminalEvent = "";
+    this.terminalError = undefined;
+    this.incompleteReason = "";
+  }
+
+  get seen() {
+    return Boolean(this.terminalEvent);
   }
 
   push(chunk) {
-    if (this.seen) return;
     this.#consume(this.decoder.write(chunk));
   }
 
   end() {
-    if (this.seen) return;
     this.#consume(this.decoder.end());
     if (this.lineBuffer) this.#processLine(this.lineBuffer);
   }
 
   #consume(text) {
-    if (!text || this.seen) return;
+    if (!text) return;
     this.scanBuffer = `${this.scanBuffer}${text}`.slice(-256 * 1024);
-    if (/(?:^|\n)event:\s*response\.completed\s*(?:\r?\n|$)/m.test(this.scanBuffer) ||
-        /"type"\s*:\s*"response\.completed"/.test(this.scanBuffer)) {
-      this.seen = true;
-      return;
-    }
+    const eventMatch = this.scanBuffer.match(
+      /(?:^|\n)event:\s*(response\.(?:completed|failed|incomplete)|error)\s*(?:\r?\n|$)/im,
+    );
+    if (eventMatch) this.#recordTerminal(eventMatch[1]);
     this.lineBuffer += text;
     let newline;
     while ((newline = this.lineBuffer.indexOf("\n")) >= 0) {
       const line = this.lineBuffer.slice(0, newline).replace(/\r$/, "");
       this.lineBuffer = this.lineBuffer.slice(newline + 1);
       this.#processLine(line);
-      if (this.seen) return;
     }
     if (this.lineBuffer.length > 256 * 1024) this.lineBuffer = this.lineBuffer.slice(-256 * 1024);
   }
 
   #processLine(line) {
     const trimmed = line.trim();
-    if (/^event:\s*response\.completed$/i.test(trimmed)) {
-      this.seen = true;
+    const eventMatch = trimmed.match(/^event:\s*(response\.(?:completed|failed|incomplete)|error)$/i);
+    if (eventMatch) {
+      this.#recordTerminal(eventMatch[1]);
       return;
     }
     let json = trimmed;
     if (json.startsWith("data:")) json = json.slice(5).trim();
     if (!json.startsWith("{")) return;
     try {
-      if (JSON.parse(json)?.type === "response.completed") this.seen = true;
+      const payload = JSON.parse(json);
+      this.#recordTerminal(payload?.type, payload);
     } catch {
       // A complete JSON line may arrive in a later chunk.
     }
   }
+
+  #recordTerminal(type, payload) {
+    const normalizedType = String(type || "").toLowerCase();
+    if (!responseTerminalEvents.has(normalizedType)) return;
+    if (!this.terminalEvent) this.terminalEvent = normalizedType;
+    if (this.terminalEvent !== normalizedType || !payload || typeof payload !== "object") return;
+
+    if (normalizedType === "response.failed" || normalizedType === "error") {
+      const source =
+        payload?.response?.error && typeof payload.response.error === "object"
+          ? payload.response.error
+          : payload?.error && typeof payload.error === "object"
+            ? payload.error
+            : payload;
+      this.terminalError = {
+        type: redactText(source?.type || "response_error", 96),
+        code: redactText(source?.code || "", 96),
+        message: redactText(source?.message || "response failed", 512),
+        param: redactText(source?.param || "", 128),
+      };
+    }
+
+    if (normalizedType === "response.incomplete") {
+      const details = payload?.response?.incomplete_details || payload?.incomplete_details;
+      this.incompleteReason = redactText(details?.reason || "", 128);
+    }
+  }
+}
+
+function terminalLogFields(completionTracker) {
+  if (!completionTracker?.seen) return {};
+  const completed = completionTracker.terminalEvent === "response.completed";
+  const incomplete = completionTracker.terminalEvent === "response.incomplete";
+  const errorType = String(completionTracker.terminalError?.type || "").toLowerCase();
+  const errorCode = String(completionTracker.terminalError?.code || "").toLowerCase();
+  const failureClass = incomplete
+    ? "incomplete"
+    : errorCode === "cyber_policy"
+      ? "policy"
+      : errorType === "invalid_request" || errorCode === "invalid_request"
+        ? "invalid_request"
+        : completed
+          ? undefined
+          : "upstream_terminal";
+  return {
+    terminal_event: completionTracker.terminalEvent,
+    completed,
+    logical_outcome: completed ? "completed" : incomplete ? "incomplete" : "failed",
+    ...(failureClass ? { failure_class: failureClass } : {}),
+    ...(failureClass === "policy" || failureClass === "invalid_request" || incomplete
+      ? { retryable: false }
+      : {}),
+    ...(completionTracker.terminalError ? { terminal_error: completionTracker.terminalError } : {}),
+    ...(completionTracker.incompleteReason ? { incomplete_reason: completionTracker.incompleteReason } : {}),
+  };
+}
+
+function inferResponseOutcome(fields) {
+  if (fields.logical_outcome && Object.hasOwn(responseOutcomeCounters, fields.logical_outcome)) {
+    return fields.logical_outcome;
+  }
+  if (fields.status === 499 || fields.error?.code === "CLIENT_CLOSED" || fields.error?.code === "CLIENT_ABORTED") {
+    return "client_closed";
+  }
+  const errorCode = String(fields.error?.code || "").toUpperCase();
+  if (
+    errorCode.startsWith("UPSTREAM_") ||
+    ["ECONNRESET", "ECONNREFUSED", "EPIPE", "ENETDOWN", "ENETUNREACH", "ETIMEDOUT"].includes(errorCode)
+  ) {
+    return "transport_error";
+  }
+  if (fields.error || Number(fields.status) >= 400) return "http_error";
+  return "completed";
 }
 
 function connectionKind(request) {
@@ -368,6 +460,7 @@ function connectionKind(request) {
 
 function forwardStreaming({ request, response, rawBody, route, mode, model, upstreamModel, requestUrl, requestId }) {
   const started = Date.now();
+  const isResponsesRequest = request.method === "POST" && requestUrl.pathname === "/v1/responses";
   const isOfficial = route === "official";
   const transport = isOfficial && officialOrigin.protocol === "https:" ? https : http;
   const agent = isOfficial && officialOrigin.protocol === "https:" ? officialHttpsAgent : localHttpAgent;
@@ -417,6 +510,8 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
   const finish = (fields) => {
     if (finished) return;
     finished = true;
+    const logicalOutcome = isResponsesRequest ? inferResponseOutcome(fields) : undefined;
+    if (logicalOutcome) responseOutcomeCounters[logicalOutcome] += 1;
     safeLog({
       event: "complete",
       request_id: requestId,
@@ -427,22 +522,27 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
       duration_ms: Date.now() - started,
       conn: finalConnection,
       retries: retryCount,
+      ...(logicalOutcome && !fields.logical_outcome ? { logical_outcome: logicalOutcome } : {}),
       ...fields,
     });
   };
 
-  const detachCompletedClient = () => {
+  const detachTerminatedClient = () => {
     if (!clientAttached) return;
     clientAttached = false;
     response.removeAllListeners("drain");
-    finish({ status: 200, client_closed_after_completed: true, completed: true });
+    finish({
+      status: 200,
+      client_closed_after_terminal: true,
+      ...terminalLogFields(completionTracker),
+    });
     if (currentResponse && !currentResponse.destroyed && !currentResponse.readableEnded) currentResponse.resume();
   };
 
   const handleClientDisconnect = (error) => {
     if (!clientAttached || response.writableEnded) return;
     if (completionTracker?.seen) {
-      detachCompletedClient();
+      detachTerminatedClient();
       return;
     }
     clientAttached = false;
@@ -482,7 +582,11 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
       upstreamSettled = true;
       if (completionTracker?.seen) {
         endClient();
-        finish({ status: statusCode, completed: true, upstream_closed_after_completed: true });
+        finish({
+          status: statusCode,
+          upstream_closed_after_terminal: true,
+          ...terminalLogFields(completionTracker),
+        });
         return;
       }
       finish({ status: 502, error: safeError(error) });
@@ -541,13 +645,16 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
       if (expectsCompletion && !completionTracker.seen) {
         finish({
           status: 502,
-          error: safeError(Object.assign(new Error("upstream ended before response.completed"), { code: "UPSTREAM_EARLY_EOF" })),
+          error: safeError(Object.assign(new Error("upstream ended without a terminal response event"), { code: "UPSTREAM_EARLY_EOF" })),
         });
         if (clientAttached && !response.destroyed) response.destroy();
         return;
       }
       endClient();
-      finish({ status: statusCode, completed: expectsCompletion ? true : undefined });
+      finish({
+        status: statusCode,
+        ...(expectsCompletion ? terminalLogFields(completionTracker) : {}),
+      });
     });
 
     incomingResponse.once("aborted", () => {
@@ -783,6 +890,7 @@ const server = http.createServer(async (request, response) => {
         gpt_routing_mode: mode === 1 ? "direct" : "forward",
         routing: mode === 1 ? "gpt-official-deepseek-cliproxy" : "all-cliproxy",
         active_requests: activeUpstreamRequests.size,
+        response_outcomes: { ...responseOutcomeCounters },
       }),
       "utf8",
     );

@@ -7,6 +7,7 @@ node_path="$(command -v node || true)"
 
 required_files=(
   src/codex-catalog-compat.mjs
+  tests/Test-StreamingTerminals.mjs
   config/config.template.yaml
   macos/Install-CLIProxyAPIRouter.sh
   macos/scripts/build-model-catalog.mjs
@@ -31,6 +32,8 @@ for script in \
   "$repository_root/macos/scripts/render-runtime-config.mjs"; do
   "$node_path" --check "$script"
 done
+
+"$node_path" "$repository_root/tests/Test-StreamingTerminals.mjs"
 zsh -n \
   "$repository_root/macos/Install-CLIProxyAPIRouter.sh" \
   "$repository_root/macos/scripts/cliproxy-common.sh" \

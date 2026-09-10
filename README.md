@@ -77,8 +77,12 @@ Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
 - 仅对“复用连接、响应头到达前的 `ECONNRESET`”进行一次内部重试；当前版本还对
   TLS 握手前的短暂 reset 使用两个有界退避（250 ms、750 ms）。不会任意重试已经
   开始执行的长 POST。
-- 同时识别 `event: response.completed` 与 JSON `"type":"response.completed"`；
-  完成后客户端关闭不会误记为失败。
+- 识别 `response.completed`、`response.failed`、`response.incomplete` 和流式 `error`
+  终止事件；失败或不完整响应会原样交给 Codex，并在脱敏日志中保留终止类型、错误码
+  或 incomplete 原因。逻辑结果按 completed / failed / incomplete / transport error 等类别
+  独立计数，不会因为 HTTP 200 而把模型拒绝统计为成功；`cyber_policy`、其他
+  `invalid_request` 及 incomplete 明确标记为不可原样重试。只有完全缺少终止事件的
+  2xx EOF 才按异常断流处理。
 - 请求上限 64 MiB，错误体采集上限 2 MiB；非 2xx 响应原样返回。
 - 日志只记录有界、结构化、脱敏后的错误字段，不记录 prompt、OAuth、API key、
   Cookie 或完整账户 ID。
