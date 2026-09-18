@@ -15,6 +15,8 @@ routing-mode.txt
 *.pid
 *.log
 logs/
+body-logs/
+body-logging.txt
 cliproxy-model-catalog.json
 
 # Downloaded third-party artifacts

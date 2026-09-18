@@ -5,8 +5,14 @@ source "${HOME:?HOME is required}/.codex/tools/cliproxyapi/cliproxy-common.sh"
 
 cliproxy_restart=true
 cliproxy_mode_choice=""
+cliproxy_body_logging=""
 while (( $# > 0 )); do
   case "$1" in
+    --body-logging)
+      (( $# >= 2 )) || cliproxy_die "--body-logging requires y or n."
+      cliproxy_body_logging="$2"
+      shift 2
+      ;;
     --no-restart)
       cliproxy_restart=false
       shift
@@ -21,7 +27,7 @@ while (( $# > 0 )); do
       shift
       ;;
     *)
-      cliproxy_die "Usage: enable-cliproxy [--no-restart] [--mode 1|2]"
+      cliproxy_die "Usage: enable-cliproxy [--no-restart] [--mode 1|2] [--body-logging y|n]"
       ;;
   esac
 done
@@ -37,6 +43,18 @@ if [[ -z "$cliproxy_mode_choice" ]]; then
     print -u2 -- "请输入 1 或 2。"
   done
 fi
+
+if [[ -z "$cliproxy_body_logging" ]]; then
+  cliproxy_body_logging=n
+  if [[ -t 0 ]]; then
+    read "cliproxy_body_logging?记录完整请求/响应正文（可能包含私人内容）？[y/N]: " || cliproxy_body_logging=n
+  fi
+fi
+case "${cliproxy_body_logging:l}" in
+  y|yes) cliproxy_body_logging=enabled ;;
+  ""|n|no) cliproxy_body_logging=disabled ;;
+  *) cliproxy_die "--body-logging requires y or n." ;;
+esac
 
 case "$cliproxy_mode_choice" in
   1|direct) cliproxy_routing_mode="direct" ;;
@@ -117,6 +135,10 @@ if ! cliproxy_validate_codex_config || ! cliproxy_validate_catalog; then
   cliproxy_die "Codex validation failed; the previous config was restored."
 fi
 
+print -r -- "$cliproxy_body_logging" >"$cliproxy_tools_dir/body-logging.txt.tmp-$$"
+chmod 600 "$cliproxy_tools_dir/body-logging.txt.tmp-$$"
+mv -f "$cliproxy_tools_dir/body-logging.txt.tmp-$$" "$cliproxy_tools_dir/body-logging.txt"
+print -- "Full request/response body logging: $cliproxy_body_logging ($cliproxy_tools_dir/body-logs)"
 cliproxy_enable_succeeded=true
 if [[ "$cliproxy_routing_mode" == "direct" ]]; then
   print -- "Mode 1 enabled: GPT -> OpenAI direct; DeepSeek/other proxy models -> CLIProxyAPI 127.0.0.1:8317 (Codex entry 127.0.0.1:8318)."

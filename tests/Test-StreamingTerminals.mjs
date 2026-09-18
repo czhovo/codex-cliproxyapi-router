@@ -10,6 +10,8 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const routerPath = path.join(repositoryRoot, "src", "codex-catalog-compat.mjs");
 const testDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "cliproxy-stream-test-"));
 const routingModePath = path.join(testDirectory, "routing-mode.txt");
+const captureFlag = path.join(testDirectory, "body-logging.txt");
+const captureDirectory = path.join(testDirectory, "body-logs");
 fs.writeFileSync(routingModePath, "direct\n", "utf8");
 
 function listen(server) {
@@ -116,6 +118,8 @@ try {
       CODEX_OFFICIAL_PATH: "/backend-api/codex/responses",
       CODEX_ROUTING_MODE_FILE: routingModePath,
       CLIPROXY_CLIENT_KEY: "test",
+      CLIPROXY_BODY_LOGGING_FILE: captureFlag,
+      CLIPROXY_BODY_LOG_DIR: captureDirectory,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -202,6 +206,8 @@ try {
   });
 
   const unterminatedBody = JSON.stringify({ model: "gpt-6-astra", stream: true });
+  assert.equal(fs.existsSync(captureDirectory), false, "default must not record bodies");
+  fs.writeFileSync(captureFlag, "enabled", "utf8");
   await assert.rejects(
     request({
       port: routerPort,
@@ -223,6 +229,26 @@ try {
   );
   const healthAfterTransportFailure = await request({ port: routerPort, path: "/health" });
   assert.equal(JSON.parse(healthAfterTransportFailure.body).response_outcomes.transport_error, 1);
+
+  const captureIds = fs.readdirSync(captureDirectory);
+  assert.equal(captureIds.length, 1);
+  const captured = path.join(captureDirectory, captureIds[0]);
+  assert.equal(fs.readFileSync(path.join(captured, "request.json"), "utf8"), unterminatedBody);
+  assert.equal(fs.readFileSync(path.join(captured, "request.body"), "utf8"), unterminatedBody);
+  assert.equal(fs.readFileSync(path.join(captured, "response-attempt-0.body"), "utf8"),
+    'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"partial"}\n\n');
+  assert.match(fs.readFileSync(path.join(captured, "events.jsonl"), "utf8"), /UPSTREAM_EARLY_EOF/);
+
+  const sendCapturedRequest = () => request({ port: routerPort, path: "/v1/responses",
+    method: "POST", headers: { authorization: "test", "chatgpt-account-id": "test" },
+    body: unterminatedBody });
+  const capturedSuccess = await sendCapturedRequest();
+  const successId = fs.readdirSync(captureDirectory).find(id => !captureIds.includes(id));
+  assert.equal(fs.readFileSync(path.join(captureDirectory, successId, "response-attempt-0.body"), "utf8"),
+    capturedSuccess.body, "capture must preserve every SSE byte");
+  fs.writeFileSync(captureFlag, "disabled", "utf8");
+  await sendCapturedRequest();
+  assert.equal(fs.readdirSync(captureDirectory).length, 2, "disable applies without restart");
 
   assert.equal(routerStderr, "");
   process.stdout.write("Streaming terminal handling passed.\n");

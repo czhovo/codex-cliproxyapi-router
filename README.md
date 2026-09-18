@@ -1,5 +1,21 @@
 # Codex CLIProxyAPI Router for Windows and macOS
 
+## 可选完整正文日志
+
+`enable-cliproxy` 会询问是否记录完整请求和响应 `[y/N]`，默认关闭。
+Mac 非交互参数为 `--body-logging y|n`，Windows 为 `-BodyLogging y|n`。
+开关随下次请求生效；首次升级路由器代码需要由启用脚本在空闲时重载。
+日志保存在工具目录下的 `body-logs/<request-id>/`：
+
+- `request.body`：8318 实际转发的原始请求体（模型别名替换后）。
+- `request.json`：解压后的完整请求体，便于阅读。
+- `response-attempt-N.body`：上游返回的完整原始响应字节，包括 SSE 事件、推理、工具调用和 usage；中断时保留已收到的部分。
+- `events.jsonl`：路由、时间、尝试次数、HTTP 状态、响应编码及结束/异常状态。
+
+Mode 2 记录的是 8318 与 8317 之间的正文，不代表 8317 内部改写后的最终供应商请求。
+日志不记录认证请求头，但正文中的私人内容会完整保留；不自动截断或删除日志。
+正文日志及开关文件已加入 Git 忽略规则。此功能不记录模型未返回的内部推理。
+
 一个面向 Codex App 的本机双层路由工具：在同一个模型选择器中动态合并 GPT 与
 DeepSeek，并允许在两种 GPT 认证路径之间切换。所有本地服务只监听
 `127.0.0.1`，仓库不包含 API key、OAuth 文件、运行日志或 CLIProxyAPI 二进制。

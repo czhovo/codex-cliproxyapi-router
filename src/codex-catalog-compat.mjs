@@ -8,6 +8,42 @@ import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const bodyLoggingFlag = process.env.CLIPROXY_BODY_LOGGING_FILE || path.join(scriptDir, "body-logging.txt");
+const bodyLoggingDirectory = process.env.CLIPROXY_BODY_LOG_DIR || path.join(scriptDir, "body-logs");
+
+// Opt-in diagnostic capture: bodies may contain private prompts and tool output.
+// Snapshot the switch per request so disabling never truncates an active capture.
+function createBodyCapture(requestId, request, rawBody, metadata) {
+  try {
+    if (fs.readFileSync(bodyLoggingFlag, "utf8").trim() !== "enabled") return undefined;
+  } catch { return undefined; }
+  let directory;
+  let failed = false;
+  const write = (name, data, append = false) => {
+    if (failed) return;
+    try {
+      if (append) fs.appendFileSync(path.join(directory, name), data, { mode: 0o600 });
+      else fs.writeFileSync(path.join(directory, name), data, { mode: 0o600 });
+    } catch (error) {
+      failed = true;
+      safeLog({ event: "body_log_error", request_id: requestId, error: safeError(error) });
+    }
+  };
+  try {
+    fs.mkdirSync(bodyLoggingDirectory, { recursive: true, mode: 0o700 });
+    directory = path.join(bodyLoggingDirectory, requestId);
+    fs.mkdirSync(directory, { mode: 0o700 });
+  } catch (error) {
+    safeLog({ event: "body_log_error", request_id: requestId, error: safeError(error) });
+    return undefined;
+  }
+  const event = (fields) => write("events.jsonl", JSON.stringify({ timestamp: new Date().toISOString(), ...fields }) + "\n", true);
+  write("request.body", rawBody);
+  try { write("request.json", decodeBody(rawBody, request.headers["content-encoding"])); }
+  catch (error) { event({ event: "request_decode_error", error: safeError(error) }); }
+  event({ event: "request", ...metadata, content_encoding: request.headers["content-encoding"] || "identity" });
+  return { write, event };
+}
 const listenHost = "127.0.0.1";
 const listenPort = integerEnv(
   "CODEX_COMPAT_PORT",
@@ -460,6 +496,9 @@ function connectionKind(request) {
 
 function forwardStreaming({ request, response, rawBody, route, mode, model, upstreamModel, requestUrl, requestId }) {
   const started = Date.now();
+  const capture = createBodyCapture(requestId, request, rawBody, {
+    route, mode, model, upstream_model: upstreamModel, method: request.method, path: requestUrl.pathname,
+  });
   const isResponsesRequest = request.method === "POST" && requestUrl.pathname === "/v1/responses";
   const isOfficial = route === "official";
   const transport = isOfficial && officialOrigin.protocol === "https:" ? https : http;
@@ -510,6 +549,7 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
   const finish = (fields) => {
     if (finished) return;
     finished = true;
+    capture?.event({ event: "outcome", ...fields });
     const logicalOutcome = isResponsesRequest ? inferResponseOutcome(fields) : undefined;
     if (logicalOutcome) responseOutcomeCounters[logicalOutcome] += 1;
     safeLog({
@@ -560,6 +600,13 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
     currentResponse = incomingResponse;
     finalConnection = connectionKind(upstreamRequest);
     const statusCode = incomingResponse.statusCode || 502;
+    const responseFile = `response-attempt-${retryCount}.body`;
+    capture?.write(responseFile, Buffer.alloc(0));
+    capture?.event({ event: "response", attempt: retryCount, status: statusCode,
+      content_type: incomingResponse.headers["content-type"],
+      content_encoding: incomingResponse.headers["content-encoding"] || "identity" });
+    incomingResponse.once("close", () => capture?.event({ event: "response_closed",
+      attempt: retryCount, complete: incomingResponse.complete }));
     const expectsCompletion =
       request.method === "POST" && requestUrl.pathname === "/v1/responses" && statusCode >= 200 && statusCode < 300;
     completionTracker = expectsCompletion ? new ResponsesCompletionTracker() : undefined;
@@ -606,6 +653,7 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
     }
 
     incomingResponse.on("data", (chunk) => {
+      capture?.write(responseFile, chunk, true);
       if (statusCode < 200 || statusCode >= 300) {
         const remaining = errorBodyLimit - capturedErrorBytes;
         if (remaining > 0) {
@@ -670,6 +718,7 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
 
   const startAttempt = (attempt) => {
     if (!clientAttached) return;
+    capture?.event({ event: "send_attempt", attempt });
     let receivedHeaders = false;
     const upstreamRequest = transport.request(options);
     currentRequest = upstreamRequest;
