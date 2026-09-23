@@ -280,7 +280,8 @@ catch {
 
 Write-Output ''
 if (-not $PSBoundParameters.ContainsKey('BodyLogging')) {
-    $BodyLogging = (Read-Host 'Record full request/response bodies (may contain private content)? [y/N]').Trim()
+    $bodyLoggingAnswer = (Read-Host 'Record full request/response bodies (may contain private content)? [y/N]').Trim()
+    $BodyLogging = if ($bodyLoggingAnswer -match '^(?i:y|yes)$') { 'y' } else { 'n' }
 }
 $bodyLoggingValue = if ($BodyLogging -match '^(?i:y|yes)$') { 'enabled' } else { 'disabled' }
 $bodyLoggingPath = Join-Path $proxyDir 'body-logging.txt'
