@@ -128,21 +128,25 @@ if (astraIndex !== -1) {
   catalog.models.splice(currentAstraIndex, 1, compact, large);
 }
 
-const solSlug = "gpt-5.6-sol";
-const solLargeSlug = "gpt-5.6-sol-1m";
-const solIndex = catalog.models.findIndex((model) => model.slug === solSlug);
-if (solIndex !== -1) {
-  const source = catalog.models[solIndex];
-  catalog.models[solIndex] = {
-    ...source,
-    slug: solSlug,
-    display_name: "GPT 5.6 Sol",
+// These IDs can accept Responses requests before appearing in the model catalog.
+// Use predecessor UI capabilities provisionally, but never replace native metadata.
+for (const family of ["sol", "luna"]) {
+  const slug = `gpt-6-${family}`;
+  if (catalog.models.some((model) => model.slug === slug)) continue;
+  const template = catalog.models.find((model) => model.slug === `gpt-5.6-${family}`);
+  if (!template) continue;
+  catalog.models.push({
+    ...structuredClone(template),
+    slug,
+    display_name: `GPT 6 ${family === "sol" ? "Sol" : "Luna"}`,
+    description: `GPT-6 ${family === "sol" ? "Sol" : "Luna"}`,
     context_window: 272000,
     max_context_window: 272000,
-    default_service_tier: "priority",
-  };
+    visibility: "list",
+    upgrade: null,
+    availability_nux: null,
+  });
 }
-catalog.models = catalog.models.filter((model) => model.slug !== solLargeSlug);
 
 const deepSeekModels = ["deepseek-v4.1-flash", "deepseek-v4.1-pro"].map((slug) =>
   catalog.models.find((model) => model.slug === slug),
@@ -151,18 +155,16 @@ const deepSeekModels = ["deepseek-v4.1-flash", "deepseek-v4.1-pro"].map((slug) =
 const visibleModelOrder = [
   "gpt-6-astra",
   "gpt-6-astra-1m",
-  "gpt-5.6-sol",
-  "gpt-5.6-terra",
-  "gpt-5.6-luna",
+  "gpt-6-sol",
+  "gpt-6-luna",
   "deepseek-v4.1-flash",
   "deepseek-v4.1-pro",
 ];
 const displayNames = new Map([
   ["gpt-6-astra", "GPT 6 Astra · 272k"],
   ["gpt-6-astra-1m", "GPT 6 Astra · 1.05M"],
-  ["gpt-5.6-sol", "GPT 5.6 Sol"],
-  ["gpt-5.6-terra", "GPT 5.6 Terra"],
-  ["gpt-5.6-luna", "GPT 5.6 Luna"],
+  ["gpt-6-sol", "GPT 6 Sol"],
+  ["gpt-6-luna", "GPT 6 Luna"],
   ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash"],
   ["deepseek-v4.1-pro", "DeepSeek V4.1 Pro"],
 ]);

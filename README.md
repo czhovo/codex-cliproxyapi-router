@@ -43,7 +43,7 @@ Codex App (built-in provider: openai)
 ```
 
 - `8318`：Node.js 兼容层，处理模型目录、路由、模型别名、压缩请求和 Responses SSE。
-- `8317`：官方 CLIProxyAPI `v7.2.151`，处理 DeepSeek API key 与可选的独立 Codex OAuth。
+- `8317`：官方 CLIProxyAPI（Mac `v7.3.15`，Windows 安装器仍为 `v7.2.151`），处理 DeepSeek API key 与可选的独立 Codex OAuth。
 - WebSocket Upgrade 返回 `426`，Codex 使用 HTTP Responses 流。
 
 ## 两种 GPT 模式
@@ -77,10 +77,16 @@ Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
   - `gpt-6-astra-1m` → `GPT 6 Astra · 1.05M`
 - `gpt-6-astra-1m` 是本地目录别名；发送到官方或 8317 前会改写为
   `gpt-6-astra`。两个 Astra 入口均提供 `low / medium / high / xhigh / max / ultra`。
-- `gpt-5.6-sol` 只发布一个 272k 入口，名称为 `GPT 5.6 Sol`；旧的
-  `gpt-5.6-sol-1m` 配置会自动迁移回 `gpt-5.6-sol`。
-- 选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、Sol、Terra、
-  Luna、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
+- Mac 目录发布 `gpt-6-sol` / `gpt-6-luna`，名称为 `GPT 6 Sol` / `GPT 6 Luna`，
+  并移除 GPT 5.6 Sol/Terra/Luna。调用使用真实 GPT 6 ID，不映射回 GPT 5.6。
+  上游尚未列出 GPT 6 Sol/Luna 时，暂借对应 GPT 5.6 模板的 UI 能力并使用保守的
+  272k 窗口；这不是上游能力声明。上游提供原生条目后优先保留其参数。
+  此次变更仅更新 Mac 工具，Windows 工具未同步。
+  GPT 6 Sol/Luna 已实测官方直连及 Mode 1 返回 `response.completed`；Mac 的
+  CLIProxyAPI 升级至 `v7.3.15` 后，8317 也已通过两个模型的实际调用。
+  旧版 `v7.2.151` 返回 `unknown provider`，只更新菜单不足以启用其 Mode 2。
+- Mac 选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、GPT 6 Sol、
+  GPT 6 Luna、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
   目录失败；其他上游模型不进入本项目的选择器。
 - CLIProxyAPI 目录存在 `deepseek-v4.1-flash` 或 `deepseek-v4.1-pro` 时才发布对应项；菜单名称分别为
   `DeepSeek V4.1 Flash` 和 `DeepSeek V4.1 Pro`，CLIProxyAPI 会将它们映射为上游
@@ -169,12 +175,12 @@ cd codex-cliproxyapi-router
 zsh ./macos/Install-CLIProxyAPIRouter.sh
 ```
 
-安装器会根据 `uname -m` 下载并校验固定的 CLIProxyAPI `v7.2.151` 官方包：
+安装器会根据 `uname -m` 下载并校验固定的 CLIProxyAPI `v7.3.15` 官方包：
 
 - Apple Silicon：`darwin_aarch64`，SHA-256
-  `9115b9691ceff071735ec1365c2885dca5d4084105de09877f5afdb675f1f815`
+  `c1e49c148a94c476dc43a6a0eed28bca34239d5153ebb7792048d8c18f3b92f0`
 - Intel：`darwin_amd64`，SHA-256
-  `05d9344b0a39b81ef1d4217b1136964dadfba4a485d18a70564562fef4f6bf98`
+  `1dd2f2f5d57c2c9172eb51837d07f1f014d02ab1093215401a00c61d942bb972`
 
 它会把脚本安装到当前用户的 `~/.codex/tools/cliproxyapi`，生成仅供本机使用的随机
 client key，创建 `launchd` 配置和桌面双击入口，但不会启动服务、修改

@@ -108,9 +108,8 @@ const catalog = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const expected = [
   ["gpt-6-astra", "GPT 6 Astra · 272k"],
   ["gpt-6-astra-1m", "GPT 6 Astra · 1.05M"],
-  ["gpt-5.6-sol", "GPT 5.6 Sol"],
-  ["gpt-5.6-terra", "GPT 5.6 Terra"],
-  ["gpt-5.6-luna", "GPT 5.6 Luna"],
+  ["gpt-6-sol", "GPT 6 Sol"],
+  ["gpt-6-luna", "GPT 6 Luna"],
   ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash"],
   ["deepseek-v4.1-pro", "DeepSeek V4.1 Pro"],
 ];
@@ -118,7 +117,7 @@ const actual = catalog.models.map(({ slug, display_name }) => [slug, display_nam
 if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("macOS model picker list mismatch");
 const shortAstra = catalog.models.find((model) => model.slug === "gpt-6-astra");
 const longAstra = catalog.models.find((model) => model.slug === "gpt-6-astra-1m");
-const shortSol = catalog.models.find((model) => model.slug === "gpt-5.6-sol");
+const shortSol = catalog.models.find((model) => model.slug === "gpt-6-sol");
 if (shortAstra.context_window !== 272000 || shortAstra.max_context_window !== 272000) throw new Error("272k Astra mismatch");
 if (longAstra.context_window !== 921000 || longAstra.max_context_window !== 921000) throw new Error("1.05M Astra mismatch");
 for (const model of [shortAstra, longAstra]) {
@@ -127,7 +126,7 @@ for (const model of [shortAstra, longAstra]) {
   }
 }
 if (shortSol.context_window !== 272000 || shortSol.max_context_window !== 272000) throw new Error("272k Sol mismatch");
-if (catalog.models.some((model) => model.slug === "gpt-5.6-sol-1m")) throw new Error("removed Sol 1.05M alias remains");
+if (catalog.models.some((model) => model.slug.startsWith("gpt-5.6-"))) throw new Error("removed GPT 5.6 model remains");
 for (const slug of ["deepseek-v4.1-flash", "deepseek-v4.1-pro"]) {
   const model = catalog.models.find((entry) => entry.slug === slug);
   if (model.default_reasoning_level !== "high") throw new Error(`${slug} default reasoning mismatch`);
@@ -152,10 +151,32 @@ NODE
 const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8")).models;
 const slugs = models.map((model) => model.slug);
 const expected = [
-  "gpt-6-astra", "gpt-6-astra-1m", "gpt-5.6-sol", "gpt-5.6-terra",
-  "gpt-5.6-luna", "deepseek-v4.1-flash", "deepseek-v4.1-pro",
+  "gpt-6-astra", "gpt-6-astra-1m", "gpt-6-sol",
+  "gpt-6-luna", "deepseek-v4.1-flash", "deepseek-v4.1-pro",
 ];
 if (JSON.stringify(slugs) !== JSON.stringify(expected)) throw new Error("mode 1 supplemental proxy model merge mismatch");
+NODE
+
+"$node_path" - "$test_dir/source.json" "$test_dir/native-six.json" <<'NODE'
+const fs = require("node:fs");
+const source = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+for (const family of ["sol", "luna"]) source.models.push({
+  slug: `gpt-6-${family}`, context_window: 400000, max_context_window: 400000,
+  supported_reasoning_levels: [{ effort: "high" }],
+});
+fs.writeFileSync(process.argv[3], JSON.stringify(source), "utf8");
+NODE
+"$node_path" "$repository_root/macos/scripts/build-model-catalog.mjs" \
+  forward "$test_dir/native-six.json" "$test_dir/native-six-catalog.json"
+"$node_path" - "$test_dir/native-six-catalog.json" <<'NODE'
+const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8")).models;
+for (const slug of ["gpt-6-sol", "gpt-6-luna"]) {
+  const matches = models.filter((model) => model.slug === slug);
+  if (matches.length !== 1 || matches[0].context_window !== 400000 ||
+      matches[0].supported_reasoning_levels.map((level) => level.effort).join(",") !== "high") {
+    throw new Error("Native GPT 6 metadata must take precedence over fallback");
+  }
+}
 NODE
 
 mkdir -p "$test_dir/state"
@@ -214,7 +235,7 @@ NODE
 "$node_path" - "$test_dir/no-sol-catalog.json" <<'NODE'
 const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8")).models;
 const slugs = models.map((model) => model.slug);
-if (slugs.join(",") !== "gpt-6-astra,gpt-6-astra-1m,gpt-5.6-luna") throw new Error("Astra fallback catalog mismatch");
+if (slugs.join(",") !== "gpt-6-astra,gpt-6-astra-1m,gpt-6-luna") throw new Error("Astra fallback catalog mismatch");
 for (const model of models.filter((entry) => entry.slug.startsWith("gpt-6-astra"))) {
   if (!model.supported_reasoning_levels.some((level) => level.effort === "ultra")) throw new Error("Astra fallback lacks ultra");
 }
