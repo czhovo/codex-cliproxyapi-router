@@ -240,8 +240,8 @@ try {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required file is missing: $required" }
     }
     $version = Get-ExecutableVersion
-    if ($version -notmatch 'Version:\s*7\.2\.151\b') {
-        throw 'The fixed CLIProxyAPI executable is not official version 7.2.151.'
+    if ($version -notmatch 'Version:\s*7\.3\.15\b') {
+        throw 'The fixed CLIProxyAPI executable is not official version 7.3.15.'
     }
     & $nodePath --check $compatScriptPath
     if ($LASTEXITCODE -ne 0) { throw 'Compatibility proxy Node syntax validation failed.' }

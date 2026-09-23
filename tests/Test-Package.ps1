@@ -42,6 +42,8 @@ if ($null -eq $node) { throw 'Node.js was not found on PATH.' }
 if ($LASTEXITCODE -ne 0) { throw 'Node.js syntax validation failed.' }
 & $node.Source (Join-Path $repositoryRoot 'tests\Test-StreamingTerminals.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Streaming terminal handling validation failed.' }
+& (Join-Path $PSScriptRoot 'Test-BodyLoggingPrompt.ps1')
+& (Join-Path $PSScriptRoot 'Test-WindowsCatalog.ps1')
 
 $template = [System.IO.File]::ReadAllText((Join-Path $repositoryRoot 'config\config.template.yaml'), [System.Text.Encoding]::UTF8)
 foreach ($placeholder in @('__LOCAL_PROXY_KEY__', '__DEEPSEEK_API_KEY__', '__AUTH_DIR__')) {
@@ -70,9 +72,9 @@ $installerText = [System.IO.File]::ReadAllText(
     (Join-Path $repositoryRoot 'scripts\Install-CLIProxyAPIRouter.ps1'),
     [System.Text.Encoding]::UTF8
 )
-if ($installerText -notmatch '\$cliProxyVersion\s*=\s*''7\.2\.151''' -or
-    $installerText -notmatch '976474ec0180701c31fb07a9caa9af9b5cf126dbceecedd883ae1cdc0a8024f0') {
-    throw 'Windows installer version or fixed SHA-256 is not CLIProxyAPI 7.2.151.'
+if ($installerText -notmatch '\$cliProxyVersion\s*=\s*''7\.3\.15''' -or
+    $installerText -notmatch '2722eccdabdbca935cfbd41e99b00a8017e91e45296e34b30004932c176b01b2') {
+    throw 'Windows installer version or fixed SHA-256 is not CLIProxyAPI 7.3.15.'
 }
 $compatText = [System.IO.File]::ReadAllText(
     (Join-Path $repositoryRoot 'src\codex-catalog-compat.mjs'),
@@ -87,7 +89,7 @@ $catalogUpdaterText = [System.IO.File]::ReadAllText(
 )
 foreach ($requiredCatalogText in @(
     'GPT 6 Astra', 'gpt-6-astra-1m', 'Maximum reasoning with automatic task delegation',
-    "solDisplayName = 'GPT 5.6 Sol'", "removedSolLongContextModelId = 'gpt-5.6-sol-1m'"
+    "'gpt-6-sol' = 'GPT 6 Sol'", "'gpt-6-luna' = 'GPT 6 Luna'"
 )) {
     if (-not $catalogUpdaterText.Contains($requiredCatalogText)) {
         throw "Windows model catalog updater is missing: $requiredCatalogText"

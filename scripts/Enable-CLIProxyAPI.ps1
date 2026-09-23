@@ -197,7 +197,7 @@ try {
     $models = @($catalog.models)
     $modelIds = @($models | ForEach-Object { $_.slug })
     $visibleModelIds = @(
-        'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
+        'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-6-sol', 'gpt-6-luna',
         'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
     )
     if (@($modelIds | Where-Object { $_ -notin $visibleModelIds }).Count -ne 0) {
@@ -216,13 +216,12 @@ try {
     }
     elseif ($null -ne $astraLong) { throw 'Long-context Astra alias exists without an Astra base model.' }
 
-    $sol = $models | Where-Object { $_.slug -eq 'gpt-5.6-sol' } | Select-Object -First 1
-    $removedSolLong = $models | Where-Object { $_.slug -eq 'gpt-5.6-sol-1m' } | Select-Object -First 1
-    if ($null -ne $sol -and ($sol.display_name -ne $solDisplayName -or $sol.context_window -ne 272000 -or
-        'max' -notin @(Get-ReasoningLevels -Model $sol) -or 'ultra' -notin @(Get-ReasoningLevels -Model $sol))) {
-        throw 'Conditional GPT-5.6 Sol catalog validation failed.'
+    foreach ($family in @('sol', 'luna')) {
+        $entry = $models | Where-Object { $_.slug -eq "gpt-6-$family" } | Select-Object -First 1
+        if ($null -ne $entry -and $entry.display_name -ne "GPT 6 $family") {
+            throw "Conditional GPT-6 $family catalog validation failed."
+        }
     }
-    if ($null -ne $removedSolLong) { throw 'Removed long-context Sol alias remains in the generated catalog.' }
 
     foreach ($deepSeekId in @('deepseek-v4.1-flash', 'deepseek-v4.1-pro')) {
         $deepSeek = $models | Where-Object { $_.slug -eq $deepSeekId } | Select-Object -First 1

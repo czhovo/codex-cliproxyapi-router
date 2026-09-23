@@ -5,6 +5,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$OutputEncoding = [Console]::OutputEncoding
 $clientKeyPath = Join-Path $PSScriptRoot 'client-key.txt'
 $routingModePath = Join-Path $PSScriptRoot 'routing-mode.txt'
 $catalogPath = [System.IO.Path]::GetFullPath($OutputPath)
@@ -67,18 +69,34 @@ if ($routingMode -eq '1') {
     $catalog = $officialCatalog
 }
 
+# Until native entries arrive, borrow predecessor UI metadata without changing
+# the real upstream model ID. Never override native GPT 6 capabilities.
+foreach ($family in @('sol', 'luna')) {
+    $slug = "gpt-6-$family"
+    if (@($catalog.models | Where-Object { $_.slug -eq $slug }).Count -gt 0) { continue }
+    $template = $catalog.models | Where-Object { $_.slug -eq "gpt-5.6-$family" } | Select-Object -First 1
+    if ($null -eq $template) { continue }
+    $fallback = $template | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+    Set-ModelProperty $fallback 'slug' $slug
+    Set-ModelProperty $fallback 'description' "GPT-6 $family"
+    Set-ModelProperty $fallback 'context_window' 272000
+    Set-ModelProperty $fallback 'max_context_window' 272000
+    Set-ModelProperty $fallback 'visibility' 'list'
+    Set-ModelProperty $fallback 'upgrade' $null
+    Set-ModelProperty $fallback 'availability_nux' $null
+    Set-ModelProperty $catalog 'models' ([object[]]@($catalog.models) + @($fallback))
+}
+
 $visibleSourceModelIds = @(
-    'gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
+    'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna',
     'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
 )
 $astraModelId = 'gpt-6-astra'
 $astraLongContextModelId = 'gpt-6-astra-1m'
-$solModelId = 'gpt-5.6-sol'
-$removedSolLongContextModelId = 'gpt-5.6-sol-1m'
+$solModelId = 'gpt-6-sol'
 $middleDot = [char]0x00B7
 $astraShortContextDisplayName = "GPT 6 Astra $middleDot 272k"
 $astraLongContextDisplayName = "GPT 6 Astra $middleDot 1.05M"
-$solDisplayName = 'GPT 5.6 Sol'
 $sourceModels = @(
     foreach ($modelId in $visibleSourceModelIds) {
         $catalog.models | Where-Object { $_.slug -eq $modelId } | Select-Object -First 1
@@ -120,8 +138,8 @@ if (@($sourceModels | Where-Object { $_.slug -eq $astraModelId }).Count -eq 0) {
 }
 
 $displayNames = @{
-    'gpt-5.6-terra' = 'GPT 5.6 Terra'
-    'gpt-5.6-luna' = 'GPT 5.6 Luna'
+    'gpt-6-sol' = 'GPT 6 Sol'
+    'gpt-6-luna' = 'GPT 6 Luna'
     'deepseek-v4.1-flash' = 'DeepSeek V4.1 Flash'
     'deepseek-v4.1-pro' = 'DeepSeek V4.1 Pro'
 }
@@ -170,23 +188,8 @@ foreach ($model in $sourceModels) {
         continue
     }
 
-    if ($model.slug -eq $solModelId) {
-        $gptReasoning = @(Get-ReasoningLevels -Model $model)
-        $gptTierIds = @($model.service_tiers | ForEach-Object { $_.id })
-        if ('max' -notin $gptReasoning -or 'ultra' -notin $gptReasoning) {
-            throw 'Upstream gpt-5.6-sol exists but does not expose max and ultra reasoning.'
-        }
-        if ('priority' -notin $gptTierIds) {
-            throw 'Upstream gpt-5.6-sol exists but does not expose Fast/priority.'
-        }
-
-        Set-ModelProperty -Model $model -Name 'display_name' -Value $solDisplayName
-        Set-ModelProperty -Model $model -Name 'context_window' -Value 272000
-        Set-ModelProperty -Model $model -Name 'max_context_window' -Value 272000
+    if ($model.slug -like 'gpt-*' -and 'priority' -in @($model.service_tiers | ForEach-Object { $_.id })) {
         Set-ModelProperty -Model $model -Name 'default_service_tier' -Value 'priority'
-
-        $pickerModels.Add($model)
-        continue
     }
 
     if ($model.slug -in @('deepseek-v4.1-flash', 'deepseek-v4.1-pro')) {
@@ -209,7 +212,7 @@ $models = [object[]]$pickerModels.ToArray()
 Set-ModelProperty -Model $catalog -Name 'models' -Value $models
 $pickerIds = @($models | ForEach-Object { $_.slug })
 $visiblePickerModelIds = @(
-    'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
+    'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-6-sol', 'gpt-6-luna',
     'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
 )
 if (@($pickerIds | Where-Object { $_ -notin $visiblePickerModelIds }).Count -ne 0) {
@@ -231,19 +234,6 @@ if ($null -ne $astraShortContext) {
 }
 elseif ($null -ne $astraLongContext) {
     throw 'Long-context Astra alias exists without an Astra base model.'
-}
-
-$sourceHasSol = @($sourceModels | Where-Object { $_.slug -eq $solModelId }).Count -gt 0
-$solModel = $models | Where-Object { $_.slug -eq $solModelId } | Select-Object -First 1
-if ($sourceHasSol) {
-    if ($null -eq $solModel -or $solModel.display_name -ne $solDisplayName -or
-        $solModel.context_window -ne 272000 -or $solModel.default_service_tier -ne 'priority' -or
-        $removedSolLongContextModelId -in $pickerIds) {
-        throw 'Dynamic GPT-5.6 Sol model failed validation.'
-    }
-}
-elseif ($null -ne $solModel -or $removedSolLongContextModelId -in $pickerIds) {
-    throw 'GPT-5.6 Sol was generated without an upstream base model.'
 }
 
 foreach ($deepSeekId in @('deepseek-v4.1-flash', 'deepseek-v4.1-pro')) {

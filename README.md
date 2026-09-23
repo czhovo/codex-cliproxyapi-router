@@ -43,7 +43,7 @@ Codex App (built-in provider: openai)
 ```
 
 - `8318`：Node.js 兼容层，处理模型目录、路由、模型别名、压缩请求和 Responses SSE。
-- `8317`：官方 CLIProxyAPI（Mac `v7.3.15`，Windows 安装器仍为 `v7.2.151`），处理 DeepSeek API key 与可选的独立 Codex OAuth。
+- `8317`：官方 CLIProxyAPI `v7.3.15`（Windows 与 Mac），处理 DeepSeek API key 与可选的独立 Codex OAuth。
 - WebSocket Upgrade 返回 `426`，Codex 使用 HTTP Responses 流。
 
 ## 两种 GPT 模式
@@ -77,15 +77,17 @@ Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
   - `gpt-6-astra-1m` → `GPT 6 Astra · 1.05M`
 - `gpt-6-astra-1m` 是本地目录别名；发送到官方或 8317 前会改写为
   `gpt-6-astra`。两个 Astra 入口均提供 `low / medium / high / xhigh / max / ultra`。
-- Mac 目录发布 `gpt-6-sol` / `gpt-6-luna`，名称为 `GPT 6 Sol` / `GPT 6 Luna`，
+- Windows 与 Mac 目录发布 `gpt-6-sol` / `gpt-6-luna`，名称为 `GPT 6 Sol` / `GPT 6 Luna`，
   并移除 GPT 5.6 Sol/Terra/Luna。调用使用真实 GPT 6 ID，不映射回 GPT 5.6。
   上游尚未列出 GPT 6 Sol/Luna 时，暂借对应 GPT 5.6 模板的 UI 能力并使用保守的
   272k 窗口；这不是上游能力声明。上游提供原生条目后优先保留其参数。
-  此次变更仅更新 Mac 工具，Windows 工具未同步。
+  Windows 与 Mac 的目录生成、启用校验和安装版本已同步。
   GPT 6 Sol/Luna 已实测官方直连及 Mode 1 返回 `response.completed`；Mac 的
   CLIProxyAPI 升级至 `v7.3.15` 后，8317 也已通过两个模型的实际调用。
+  Windows 同样已通过两个模型的 Mode 1 和 8317 独立 OAuth 实测，并验证
+  `enable-cliproxy -Mode 1 -NoRestart` 可生成新目录；无需重启 App 即可部署服务端更新。
   旧版 `v7.2.151` 返回 `unknown provider`，只更新菜单不足以启用其 Mode 2。
-- Mac 选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、GPT 6 Sol、
+- 两个平台的选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、GPT 6 Sol、
   GPT 6 Luna、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
   目录失败；其他上游模型不进入本项目的选择器。
 - CLIProxyAPI 目录存在 `deepseek-v4.1-flash` 或 `deepseek-v4.1-pro` 时才发布对应项；菜单名称分别为
@@ -140,7 +142,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-CLIPro
 
 安装器会：
 
-1. 从 CLIProxyAPI 官方 GitHub Release 下载固定的 `v7.2.151` Windows x64 包；
+1. 从 CLIProxyAPI 官方 GitHub Release 下载固定的 `v7.3.15` Windows x64 包，SHA-256 为 `2722eccdabdbca935cfbd41e99b00a8017e91e45296e34b30004932c176b01b2`；
 2. 核对官方 SHA-256
    `976474ec0180701c31fb07a9caa9af9b5cf126dbceecedd883ae1cdc0a8024f0`；
 3. 把通用脚本安装到当前用户的 Codex 数据目录；
