@@ -70,15 +70,19 @@ if ($routingMode -eq '1') {
 }
 
 # Until native entries arrive, borrow predecessor UI metadata without changing
-# the real upstream model ID. Never override native GPT 6 capabilities.
+# the real upstream model ID. Never override native model capabilities.
 foreach ($family in @('sol', 'luna')) {
-    $slug = "gpt-6-$family"
+    $slug = if ($family -eq 'sol') { 'gpt-6.1-sol' } else { 'gpt-6-luna' }
     if (@($catalog.models | Where-Object { $_.slug -eq $slug }).Count -gt 0) { continue }
-    $template = $catalog.models | Where-Object { $_.slug -eq "gpt-5.6-$family" } | Select-Object -First 1
+    $template = $null
+    foreach ($predecessor in @("gpt-6-$family", "gpt-5.6-$family")) {
+        $template = $catalog.models | Where-Object { $_.slug -eq $predecessor } | Select-Object -First 1
+        if ($null -ne $template) { break }
+    }
     if ($null -eq $template) { continue }
     $fallback = $template | ConvertTo-Json -Depth 100 | ConvertFrom-Json
     Set-ModelProperty $fallback 'slug' $slug
-    Set-ModelProperty $fallback 'description' "GPT-6 $family"
+    Set-ModelProperty $fallback 'description' "$slug (provisional predecessor UI metadata)"
     Set-ModelProperty $fallback 'context_window' 272000
     Set-ModelProperty $fallback 'max_context_window' 272000
     Set-ModelProperty $fallback 'visibility' 'list'
@@ -88,12 +92,12 @@ foreach ($family in @('sol', 'luna')) {
 }
 
 $visibleSourceModelIds = @(
-    'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna',
+    'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-luna',
     'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
 )
 $astraModelId = 'gpt-6-astra'
 $astraLongContextModelId = 'gpt-6-astra-1m'
-$solModelId = 'gpt-6-sol'
+$solModelId = 'gpt-6.1-sol'
 $middleDot = [char]0x00B7
 $astraShortContextDisplayName = "GPT 6 Astra $middleDot 272k"
 $astraLongContextDisplayName = "GPT 6 Astra $middleDot 1.05M"
@@ -138,7 +142,7 @@ if (@($sourceModels | Where-Object { $_.slug -eq $astraModelId }).Count -eq 0) {
 }
 
 $displayNames = @{
-    'gpt-6-sol' = 'GPT 6 Sol'
+    'gpt-6.1-sol' = 'GPT 6.1 Sol'
     'gpt-6-luna' = 'GPT 6 Luna'
     'deepseek-v4.1-flash' = 'DeepSeek V4.1 Flash'
     'deepseek-v4.1-pro' = 'DeepSeek V4.1 Pro'
@@ -208,11 +212,20 @@ foreach ($model in $sourceModels) {
     $pickerModels.Add($model)
 }
 
-$models = [object[]]$pickerModels.ToArray()
+$familyOrder = @{ astra = 0; sol = 1; terra = 2; luna = 3 }
+# Family rank takes precedence over version; retain existing order within a family.
+$models = [object[]]@($pickerModels.ToArray() | Sort-Object @{ Expression = {
+    if ($_.slug -match '^gpt-[0-9.]+-(astra|sol|terra|luna)(?:-|$)') { $familyOrder[$Matches[1]] }
+    else { 100 }
+} }, @{ Expression = { $pickerModels.IndexOf($_) } })
+# Codex sorts by numeric priority, not only by the JSON array order.
+for ($index = 0; $index -lt $models.Count; $index++) {
+    Set-ModelProperty -Model $models[$index] -Name 'priority' -Value $index
+}
 Set-ModelProperty -Model $catalog -Name 'models' -Value $models
 $pickerIds = @($models | ForEach-Object { $_.slug })
 $visiblePickerModelIds = @(
-    'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-6-sol', 'gpt-6-luna',
+    'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-6.1-sol', 'gpt-6-luna',
     'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
 )
 if (@($pickerIds | Where-Object { $_ -notin $visiblePickerModelIds }).Count -ne 0) {

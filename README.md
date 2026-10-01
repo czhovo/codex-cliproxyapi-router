@@ -48,6 +48,16 @@ Codex App (built-in provider: openai)
 
 ## 两种 GPT 模式
 
+Windows 当前将 `gpt-6-sol` 菜单项替换为 `gpt-6.1-sol`（GPT 6.1 Sol），
+保留 GPT 6 Luna 和 Astra。启用时原本选择 GPT 6 Sol 的配置也迁移到 GPT 6.1 Sol。
+官方目录尚未列出 Sol 6.1 时，优先暂借 Sol 6、其次 Sol 5.6 的 UI 元数据，
+采用保守 272k 窗口；原生 Sol 6.1 元数据出现后优先使用。请求发送真实
+`gpt-6.1-sol`，不映射回旧模型。此项更新未改变 Mac 目录。
+GPT 菜单按 Astra > Sol > Terra > Luna 的家族顺序排序，优先于版本号；
+只排序当前发布的模型，不因排序规则添加缺失的家族。目录数值优先级与该顺序一致。
+模型可见不等于账号有权使用；使用 Sol 6.1 前请更新 Codex 客户端，
+并以实际 Codex 请求验证，不能仅凭简化 API 请求成功判断客户端兼容性。
+
 ### Mode 1：GPT 官方直连
 
 满足以下条件的 `gpt-*` Responses 请求由 8318 直接转发到官方 Codex Responses

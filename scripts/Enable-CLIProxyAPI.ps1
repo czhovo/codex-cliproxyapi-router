@@ -197,7 +197,7 @@ try {
     $models = @($catalog.models)
     $modelIds = @($models | ForEach-Object { $_.slug })
     $visibleModelIds = @(
-        'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-6-sol', 'gpt-6-luna',
+        'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-6.1-sol', 'gpt-6-luna',
         'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
     )
     if (@($modelIds | Where-Object { $_ -notin $visibleModelIds }).Count -ne 0) {
@@ -216,10 +216,13 @@ try {
     }
     elseif ($null -ne $astraLong) { throw 'Long-context Astra alias exists without an Astra base model.' }
 
-    foreach ($family in @('sol', 'luna')) {
-        $entry = $models | Where-Object { $_.slug -eq "gpt-6-$family" } | Select-Object -First 1
-        if ($null -ne $entry -and $entry.display_name -ne "GPT 6 $family") {
-            throw "Conditional GPT-6 $family catalog validation failed."
+    foreach ($expected in @(
+        @{ Id = 'gpt-6.1-sol'; Name = 'GPT 6.1 Sol' },
+        @{ Id = 'gpt-6-luna'; Name = 'GPT 6 Luna' }
+    )) {
+        $entry = $models | Where-Object { $_.slug -eq $expected.Id } | Select-Object -First 1
+        if ($null -ne $entry -and $entry.display_name -ne $expected.Name) {
+            throw "Conditional $($expected.Id) catalog validation failed."
         }
     }
 
@@ -237,6 +240,7 @@ try {
     $currentModelMatch = [Regex]::Match($configText, '(?m)^model\s*=\s*"([^"]+)"\s*$')
     $currentModel = if ($currentModelMatch.Success) { $currentModelMatch.Groups[1].Value } else { '' }
     if ($currentModel -eq 'gpt-5.6-sol-1m') { $currentModel = 'gpt-5.6-sol' }
+    if ($currentModel -eq 'gpt-6-sol') { $currentModel = 'gpt-6.1-sol' }
     $defaultModel = if ($currentModel -in $modelIds) { $currentModel } else { [string]($models | Select-Object -First 1).slug }
     if ([string]::IsNullOrWhiteSpace($defaultModel)) { throw 'Dynamic upstream catalog contains no selectable model.' }
     $defaultModelObject = $models | Where-Object { $_.slug -eq $defaultModel } | Select-Object -First 1

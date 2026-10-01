@@ -89,7 +89,7 @@ $catalogUpdaterText = [System.IO.File]::ReadAllText(
 )
 foreach ($requiredCatalogText in @(
     'GPT 6 Astra', 'gpt-6-astra-1m', 'Maximum reasoning with automatic task delegation',
-    "'gpt-6-sol' = 'GPT 6 Sol'", "'gpt-6-luna' = 'GPT 6 Luna'"
+    "'gpt-6.1-sol' = 'GPT 6.1 Sol'", "'gpt-6-luna' = 'GPT 6 Luna'"
 )) {
     if (-not $catalogUpdaterText.Contains($requiredCatalogText)) {
         throw "Windows model catalog updater is missing: $requiredCatalogText"
