@@ -131,15 +131,16 @@ if (astraIndex !== -1) {
 // These IDs can accept Responses requests before appearing in the model catalog.
 // Use predecessor UI capabilities provisionally, but never replace native metadata.
 for (const family of ["sol", "luna"]) {
-  const slug = `gpt-6-${family}`;
+  const slug = family === "sol" ? "gpt-6.1-sol" : "gpt-6-luna";
   if (catalog.models.some((model) => model.slug === slug)) continue;
-  const template = catalog.models.find((model) => model.slug === `gpt-5.6-${family}`);
+  const template = catalog.models.find((model) => model.slug === `gpt-6-${family}`)
+    ?? catalog.models.find((model) => model.slug === `gpt-5.6-${family}`);
   if (!template) continue;
   catalog.models.push({
     ...structuredClone(template),
     slug,
-    display_name: `GPT 6 ${family === "sol" ? "Sol" : "Luna"}`,
-    description: `GPT-6 ${family === "sol" ? "Sol" : "Luna"}`,
+    display_name: family === "sol" ? "GPT 6.1 Sol" : "GPT 6 Luna",
+    description: `${slug} (provisional predecessor UI metadata)`,
     context_window: 272000,
     max_context_window: 272000,
     visibility: "list",
@@ -155,7 +156,7 @@ const deepSeekModels = ["deepseek-v4.1-flash", "deepseek-v4.1-pro"].map((slug) =
 const visibleModelOrder = [
   "gpt-6-astra",
   "gpt-6-astra-1m",
-  "gpt-6-sol",
+  "gpt-6.1-sol",
   "gpt-6-luna",
   "deepseek-v4.1-flash",
   "deepseek-v4.1-pro",
@@ -163,7 +164,7 @@ const visibleModelOrder = [
 const displayNames = new Map([
   ["gpt-6-astra", "GPT 6 Astra · 272k"],
   ["gpt-6-astra-1m", "GPT 6 Astra · 1.05M"],
-  ["gpt-6-sol", "GPT 6 Sol"],
+  ["gpt-6.1-sol", "GPT 6.1 Sol"],
   ["gpt-6-luna", "GPT 6 Luna"],
   ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash"],
   ["deepseek-v4.1-pro", "DeepSeek V4.1 Pro"],
@@ -173,7 +174,11 @@ catalog.models = visibleModelOrder
   .map((slug) => modelsBySlug.get(slug))
   .filter(Boolean);
 if (catalog.models.length === 0) fail("No supported visible model is present in the upstream catalog.");
-for (const model of catalog.models) model.display_name = displayNames.get(model.slug);
+for (const [index, model] of catalog.models.entries()) {
+  model.display_name = displayNames.get(model.slug);
+  // The picker uses numeric priority as well as array order. This is not service_tier.
+  model.priority = index;
+}
 
 for (const model of catalog.models) {
   model.prefer_websockets = false;

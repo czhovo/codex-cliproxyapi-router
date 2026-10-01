@@ -18,9 +18,11 @@ const existingSetting = (name) => {
   const match = existing.match(new RegExp(`^\\s*${name}\\s*=\\s*"([^"]*)"\\s*(?:#.*)?$`, "m"));
   return match?.[1] ?? "";
 };
-const configuredProxyModel = existingSetting("model") === "gpt-5.6-sol-1m"
-  ? "gpt-5.6-sol"
-  : existingSetting("model");
+const proxyAliases = new Map([
+  ["gpt-5.6-sol-1m", "gpt-5.6-sol"],
+  ["gpt-6-sol", "gpt-6.1-sol"],
+]);
+const configuredProxyModel = proxyAliases.get(existingSetting("model")) ?? existingSetting("model");
 fs.mkdirSync(path.join(stateDirectory, "backups"), { recursive: true, mode: 0o700 });
 const stamp = new Date().toISOString().replaceAll(":", "").replaceAll("-", "").replace(".", "");
 const backupPath = path.join(stateDirectory, "backups", `config-before-${mode}-${stamp}.toml`);

@@ -48,11 +48,11 @@ Codex App (built-in provider: openai)
 
 ## 两种 GPT 模式
 
-Windows 当前将 `gpt-6-sol` 菜单项替换为 `gpt-6.1-sol`（GPT 6.1 Sol），
+Windows 与 Mac 当前将 `gpt-6-sol` 菜单项替换为 `gpt-6.1-sol`（GPT 6.1 Sol），
 保留 GPT 6 Luna 和 Astra。启用时原本选择 GPT 6 Sol 的配置也迁移到 GPT 6.1 Sol。
 官方目录尚未列出 Sol 6.1 时，优先暂借 Sol 6、其次 Sol 5.6 的 UI 元数据，
 采用保守 272k 窗口；原生 Sol 6.1 元数据出现后优先使用。请求发送真实
-`gpt-6.1-sol`，不映射回旧模型。此项更新未改变 Mac 目录。
+`gpt-6.1-sol`，不映射回旧模型。
 GPT 菜单按 Astra > Sol > Terra > Luna 的家族顺序排序，优先于版本号；
 只排序当前发布的模型，不因排序规则添加缺失的家族。目录数值优先级与该顺序一致。
 模型可见不等于账号有权使用；使用 Sol 6.1 前请更新 Codex 客户端，
@@ -87,17 +87,19 @@ Mode 2 的 GPT 目录仍以 8317 的独立 OAuth 为准。
   - `gpt-6-astra-1m` → `GPT 6 Astra · 1.05M`
 - `gpt-6-astra-1m` 是本地目录别名；发送到官方或 8317 前会改写为
   `gpt-6-astra`。两个 Astra 入口均提供 `low / medium / high / xhigh / max / ultra`。
-- Windows 与 Mac 目录发布 `gpt-6-sol` / `gpt-6-luna`，名称为 `GPT 6 Sol` / `GPT 6 Luna`，
+- Windows 与 Mac 目录发布 `gpt-6.1-sol` / `gpt-6-luna`，名称为 `GPT 6.1 Sol` / `GPT 6 Luna`，
   并移除 GPT 5.6 Sol/Terra/Luna。调用使用真实 GPT 6 ID，不映射回 GPT 5.6。
-  上游尚未列出 GPT 6 Sol/Luna 时，暂借对应 GPT 5.6 模板的 UI 能力并使用保守的
+  上游尚未列出目标模型时，Sol 6.1 优先暂借 Sol 6、其次 Sol 5.6；Luna 暂借
+  Luna 5.6 的 UI 能力并使用保守的
   272k 窗口；这不是上游能力声明。上游提供原生条目后优先保留其参数。
   Windows 与 Mac 的目录生成、启用校验和安装版本已同步。
+  以下为此前 GPT 6 Sol/Luna 的验证记录，不代表本次 Sol 6.1 的端到端调用验证：
   GPT 6 Sol/Luna 已实测官方直连及 Mode 1 返回 `response.completed`；Mac 的
   CLIProxyAPI 升级至 `v7.3.15` 后，8317 也已通过两个模型的实际调用。
   Windows 同样已通过两个模型的 Mode 1 和 8317 独立 OAuth 实测，并验证
   `enable-cliproxy -Mode 1 -NoRestart` 可生成新目录；无需重启 App 即可部署服务端更新。
   旧版 `v7.2.151` 返回 `unknown provider`，只更新菜单不足以启用其 Mode 2。
-- 两个平台的选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、GPT 6 Sol、
+- 两个平台的选择器按以下顺序发布当前可用的目标项：Astra 272k、Astra 1.05M、GPT 6.1 Sol、
   GPT 6 Luna、DeepSeek Flash、DeepSeek Pro。不会因为其中某项缺失而使整个
   目录失败；其他上游模型不进入本项目的选择器。
 - CLIProxyAPI 目录存在 `deepseek-v4.1-flash` 或 `deepseek-v4.1-pro` 时才发布对应项；菜单名称分别为

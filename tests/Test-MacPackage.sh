@@ -108,7 +108,7 @@ const catalog = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const expected = [
   ["gpt-6-astra", "GPT 6 Astra · 272k"],
   ["gpt-6-astra-1m", "GPT 6 Astra · 1.05M"],
-  ["gpt-6-sol", "GPT 6 Sol"],
+  ["gpt-6.1-sol", "GPT 6.1 Sol"],
   ["gpt-6-luna", "GPT 6 Luna"],
   ["deepseek-v4.1-flash", "DeepSeek V4.1 Flash"],
   ["deepseek-v4.1-pro", "DeepSeek V4.1 Pro"],
@@ -117,7 +117,8 @@ const actual = catalog.models.map(({ slug, display_name }) => [slug, display_nam
 if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("macOS model picker list mismatch");
 const shortAstra = catalog.models.find((model) => model.slug === "gpt-6-astra");
 const longAstra = catalog.models.find((model) => model.slug === "gpt-6-astra-1m");
-const shortSol = catalog.models.find((model) => model.slug === "gpt-6-sol");
+if (catalog.models.some((model, index) => model.priority !== index)) throw new Error("Numeric picker priorities mismatch");
+const shortSol = catalog.models.find((model) => model.slug === "gpt-6.1-sol");
 if (shortAstra.context_window !== 272000 || shortAstra.max_context_window !== 272000) throw new Error("272k Astra mismatch");
 if (longAstra.context_window !== 921000 || longAstra.max_context_window !== 921000) throw new Error("1.05M Astra mismatch");
 for (const model of [shortAstra, longAstra]) {
@@ -151,7 +152,7 @@ NODE
 const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8")).models;
 const slugs = models.map((model) => model.slug);
 const expected = [
-  "gpt-6-astra", "gpt-6-astra-1m", "gpt-6-sol",
+  "gpt-6-astra", "gpt-6-astra-1m", "gpt-6.1-sol",
   "gpt-6-luna", "deepseek-v4.1-flash", "deepseek-v4.1-pro",
 ];
 if (JSON.stringify(slugs) !== JSON.stringify(expected)) throw new Error("mode 1 supplemental proxy model merge mismatch");
@@ -161,7 +162,7 @@ NODE
 const fs = require("node:fs");
 const source = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 for (const family of ["sol", "luna"]) source.models.push({
-  slug: `gpt-6-${family}`, context_window: 400000, max_context_window: 400000,
+  slug: family === "sol" ? "gpt-6.1-sol" : "gpt-6-luna", context_window: 400000, max_context_window: 400000,
   supported_reasoning_levels: [{ effort: "high" }],
 });
 fs.writeFileSync(process.argv[3], JSON.stringify(source), "utf8");
@@ -170,7 +171,7 @@ NODE
   forward "$test_dir/native-six.json" "$test_dir/native-six-catalog.json"
 "$node_path" - "$test_dir/native-six-catalog.json" <<'NODE'
 const models = JSON.parse(require("node:fs").readFileSync(process.argv[2], "utf8")).models;
-for (const slug of ["gpt-6-sol", "gpt-6-luna"]) {
+for (const slug of ["gpt-6.1-sol", "gpt-6-luna"]) {
   const matches = models.filter((model) => model.slug === slug);
   if (matches.length !== 1 || matches[0].context_window !== 400000 ||
       matches[0].supported_reasoning_levels.map((level) => level.effort).join(",") !== "high") {
@@ -180,6 +181,28 @@ for (const slug of ["gpt-6-sol", "gpt-6-luna"]) {
 NODE
 
 mkdir -p "$test_dir/state"
+"$node_path" - "$test_dir/sol-config.toml" "$test_dir/source.json" "$test_dir/predecessor.json" <<'NODE'
+const fs = require("node:fs");
+fs.writeFileSync(process.argv[2], 'model = "gpt-6-sol"\nmodel_reasoning_effort = "high"\nservice_tier = "default"\n', "utf8");
+const catalog = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+catalog.models.push({ slug: "gpt-6-sol", supported_reasoning_levels: [{ effort: "high" }] });
+fs.writeFileSync(process.argv[4], JSON.stringify(catalog), "utf8");
+NODE
+"$node_path" "$repository_root/macos/scripts/build-model-catalog.mjs" \
+  forward "$test_dir/predecessor.json" "$test_dir/predecessor-catalog.json"
+"$node_path" "$repository_root/macos/scripts/update-codex-config.mjs" \
+  enable "$test_dir/sol-config.toml" "$test_dir/predecessor-catalog.json" "$test_dir/state" >/dev/null
+"$node_path" - "$test_dir/sol-config.toml" "$test_dir/predecessor-catalog.json" <<'NODE'
+const fs = require("node:fs");
+const config = fs.readFileSync(process.argv[2], "utf8");
+if (!/^model = "gpt-6.1-sol"$/m.test(config) || !/^model_reasoning_effort = "high"$/m.test(config) ||
+    !/^service_tier = "default"$/m.test(config)) throw new Error("Sol migration changed effort/speed or did not migrate model");
+const models = JSON.parse(fs.readFileSync(process.argv[3], "utf8")).models;
+if (models.some(m => m.slug === "gpt-6-sol") ||
+    models.find(m => m.slug === "gpt-6.1-sol").supported_reasoning_levels.map(l => l.effort).join(",") !== "high") {
+  throw new Error("Sol 6.1 must replace Sol 6 and prefer its metadata over 5.6");
+}
+NODE
 cp "$test_dir/source.json" "$test_dir/state/openai-models.json"
 "$node_path" - "$test_dir/config.toml" <<'NODE'
 require("node:fs").writeFileSync(
