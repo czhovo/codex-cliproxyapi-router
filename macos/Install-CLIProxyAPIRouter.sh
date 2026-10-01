@@ -41,7 +41,8 @@ client_key_file="$state_dir/client-api-key"
 deepseek_key_file="$codex_dir/deepseek_api_key.txt"
 reload_marker="$state_dir/compat-reload-required"
 node_path="$(command -v node || true)"
-codex_binary="/Applications/ChatGPT.app/Contents/Resources/codex"
+source "$script_dir/scripts/resolve-codex-binary.sh"
+codex_binary="$(cliproxy_resolve_codex_binary)"
 
 [[ -n "$node_path" ]] || { print -u2 -- "Node.js was not found on PATH."; exit 1; }
 [[ -x "$codex_binary" ]] || { print -u2 -- "Codex App binary was not found at $codex_binary"; exit 1; }
@@ -109,7 +110,7 @@ installed_binary="$binary_dir/cli-proxy-api"
 /usr/bin/install -m 600 "$repository_root/config/config.template.yaml" "$tools_dir/config.template.yaml"
 for source_name in \
   build-model-catalog.mjs update-codex-config.mjs render-runtime-config.mjs \
-  cliproxy-common.sh enable-cliproxy reset-codex restart-codex-app.sh login-codex-oauth; do
+  cliproxy-common.sh resolve-codex-binary.sh enable-cliproxy reset-codex restart-codex-app.sh login-codex-oauth; do
   /usr/bin/install -m 700 "$script_dir/scripts/$source_name" "$tools_dir/$source_name"
 done
 

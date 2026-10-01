@@ -14,6 +14,7 @@ required_files=(
   macos/scripts/update-codex-config.mjs
   macos/scripts/render-runtime-config.mjs
   macos/scripts/cliproxy-common.sh
+  macos/scripts/resolve-codex-binary.sh
   macos/scripts/enable-cliproxy
   macos/scripts/reset-codex
   macos/scripts/restart-codex-app.sh
@@ -80,6 +81,29 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+(
+  unset CODEX_BINARY_PATH
+  source "$repository_root/macos/scripts/resolve-codex-binary.sh"
+  fixture_app="$test_dir/Fixture App.app"
+  mkdir -p "$fixture_app/Contents/Resources/codex-cli/bin"
+  cp /usr/bin/true "$fixture_app/Contents/Resources/codex"
+  [[ "$(cliproxy_resolve_codex_binary "$fixture_app")" == "$fixture_app/Contents/Resources/codex" ]]
+  cp /usr/bin/true "$fixture_app/Contents/Resources/codex-cli/bin/codex"
+  [[ "$(cliproxy_resolve_codex_binary "$fixture_app")" == "$fixture_app/Contents/Resources/codex-cli/bin/codex" ]]
+  CODEX_BINARY_PATH="$fixture_app/Contents/Resources/codex"
+  [[ "$(cliproxy_resolve_codex_binary "$fixture_app")" == "$CODEX_BINARY_PATH" ]]
+  CODEX_BINARY_PATH="$test_dir/missing"
+  if cliproxy_resolve_codex_binary "$fixture_app" >/dev/null 2>&1; then
+    print -u2 -- "Invalid explicit CLI path must fail."
+    exit 1
+  fi
+  unset CODEX_BINARY_PATH
+  if cliproxy_resolve_codex_binary "$test_dir/missing.app" >/dev/null 2>&1; then
+    print -u2 -- "Missing bundled CLI must fail."
+    exit 1
+  fi
+)
 
 "$node_path" - "$test_dir/source.json" <<'NODE'
 const fs = require("node:fs");
