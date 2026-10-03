@@ -16,6 +16,7 @@ routing-mode.txt
 *.log
 logs/
 body-logs/
+stats-logs/
 body-logging.txt
 cliproxy-model-catalog.json
 

@@ -10,6 +10,34 @@ import { fileURLToPath } from "node:url";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const bodyLoggingFlag = process.env.CLIPROXY_BODY_LOGGING_FILE || path.join(scriptDir, "body-logging.txt");
 const bodyLoggingDirectory = process.env.CLIPROXY_BODY_LOG_DIR || path.join(scriptDir, "body-logs");
+const statisticsDirectory = process.env.CLIPROXY_STATS_LOG_DIR || path.join(scriptDir, "stats-logs");
+
+function numericUsage(source) {
+  if (!source || typeof source !== "object") return null;
+  const result = {};
+  for (const key of ["input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens"]) {
+    if (Number.isSafeInteger(source[key]) && source[key] >= 0) result[key] = source[key];
+  }
+  for (const key of ["input_tokens_details", "output_tokens_details", "prompt_tokens_details", "completion_tokens_details"]) {
+    const details = {};
+    for (const field of ["cached_tokens", "cache_write_tokens", "reasoning_tokens", "audio_tokens", "text_tokens", "image_tokens"]) {
+      const value = source[key]?.[field];
+      if (Number.isSafeInteger(value) && value >= 0) details[field] = value;
+    }
+    if (Object.keys(details).length) result[key] = details;
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+function writeRequestStatistics(record) {
+  try {
+    fs.mkdirSync(statisticsDirectory, { recursive: true, mode: 0o700 });
+    fs.appendFileSync(path.join(statisticsDirectory, `${record.finished_at.slice(0, 10)}.jsonl`),
+      `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  } catch (error) {
+    safeLog({ event: "statistics_log_error", request_id: record.request_id, error: safeError(error) });
+  }
+}
 
 // Opt-in diagnostic capture: bodies may contain private prompts and tool output.
 // Snapshot the switch per request so disabling never truncates an active capture.
@@ -132,6 +160,15 @@ function redactText(value, maximum = 512) {
 
 function safeLog(fields) {
   const record = { timestamp: new Date().toISOString(), ...fields };
+  if (["route_rejected", "request_error", "alias_rewrite_error"].includes(fields.event)) {
+    writeRequestStatistics({
+      request_id: fields.request_id, started_at: null, finished_at: record.timestamp,
+      duration_ms: null, first_response_ms: null, method: null, path: null,
+      route: fields.route ?? null, mode: fields.mode ?? null, model: fields.model ?? null,
+      status: fields.status, outcome: "rejected", error_code: fields.error?.code || null,
+      usage: null,
+    });
+  }
   try {
     process.stdout.write(`${JSON.stringify(record)}\n`, () => {});
   } catch {
@@ -366,6 +403,7 @@ class ResponsesCompletionTracker {
     this.terminalEvent = "";
     this.terminalError = undefined;
     this.incompleteReason = "";
+    this.usage = null;
   }
 
   get seen() {
@@ -410,6 +448,8 @@ class ResponsesCompletionTracker {
     if (!json.startsWith("{")) return;
     try {
       const payload = JSON.parse(json);
+      const usage = numericUsage(payload?.response?.usage ?? payload?.usage);
+      if (usage) this.usage = usage;
       this.#recordTerminal(payload?.type, payload);
     } catch {
       // A complete JSON line may arrive in a later chunk.
@@ -496,6 +536,8 @@ function connectionKind(request) {
 
 function forwardStreaming({ request, response, rawBody, route, mode, model, upstreamModel, requestUrl, requestId }) {
   const started = Date.now();
+  let firstResponseAt = null;
+  let responseBytes = 0;
   const capture = createBodyCapture(requestId, request, rawBody, {
     route, mode, model, upstream_model: upstreamModel, method: request.method, path: requestUrl.pathname,
   });
@@ -552,6 +594,20 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
     capture?.event({ event: "outcome", ...fields });
     const logicalOutcome = isResponsesRequest ? inferResponseOutcome(fields) : undefined;
     if (logicalOutcome) responseOutcomeCounters[logicalOutcome] += 1;
+    writeRequestStatistics({
+      request_id: requestId,
+      started_at: new Date(started).toISOString(),
+      finished_at: new Date().toISOString(),
+      duration_ms: Date.now() - started,
+      first_response_ms: firstResponseAt === null ? null : firstResponseAt - started,
+      method: request.method, path: requestUrl.pathname, route, mode, model,
+      upstream_model: upstreamModel || model,
+      status: fields.status, outcome: logicalOutcome ?? null,
+      terminal_event: completionTracker?.terminalEvent || null,
+      error_code: fields.error?.code || fields.terminal_error?.code || null,
+      retries: retryCount, request_bytes: rawBody.length, response_bytes: responseBytes,
+      usage: completionTracker?.usage ?? null,
+    });
     safeLog({
       event: "complete",
       request_id: requestId,
@@ -597,6 +653,7 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
   });
 
   const handleUpstreamResponse = (upstreamRequest, incomingResponse) => {
+    firstResponseAt ??= Date.now();
     currentResponse = incomingResponse;
     finalConnection = connectionKind(upstreamRequest);
     const statusCode = incomingResponse.statusCode || 502;
@@ -653,6 +710,7 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
     }
 
     incomingResponse.on("data", (chunk) => {
+      responseBytes += chunk.length;
       capture?.write(responseFile, chunk, true);
       if (statusCode < 200 || statusCode >= 300) {
         const remaining = errorBodyLimit - capturedErrorBytes;

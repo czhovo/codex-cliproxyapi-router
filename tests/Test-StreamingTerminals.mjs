@@ -12,6 +12,7 @@ const testDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "cliproxy-stream-tes
 const routingModePath = path.join(testDirectory, "routing-mode.txt");
 const captureFlag = path.join(testDirectory, "body-logging.txt");
 const captureDirectory = path.join(testDirectory, "body-logs");
+const statisticsDirectory = path.join(testDirectory, "stats-logs");
 fs.writeFileSync(routingModePath, "direct\n", "utf8");
 
 function listen(server) {
@@ -61,7 +62,11 @@ async function waitUntil(predicate, description, timeoutMs = 5000) {
 const payloads = {
   "response.completed": {
     type: "response.completed",
-    response: { status: "completed", error: null, incomplete_details: null },
+    response: { status: "completed", error: null, incomplete_details: null,
+      output: [{ text: "PRIVATE_RESPONSE_SENTINEL" }],
+      usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120,
+        input_tokens_details: { cached_tokens: 80 }, output_tokens_details: { reasoning_tokens: 5 },
+        attribution: { private_content: "PRIVATE_USAGE_SENTINEL" } } },
   },
   "response.failed": {
     type: "response.failed",
@@ -120,6 +125,7 @@ try {
       CLIPROXY_CLIENT_KEY: "test",
       CLIPROXY_BODY_LOGGING_FILE: captureFlag,
       CLIPROXY_BODY_LOG_DIR: captureDirectory,
+      CLIPROXY_STATS_LOG_DIR: statisticsDirectory,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -249,6 +255,21 @@ try {
   fs.writeFileSync(captureFlag, "disabled", "utf8");
   await sendCapturedRequest();
   assert.equal(fs.readdirSync(captureDirectory).length, 2, "disable applies without restart");
+  const statisticsText = fs.readdirSync(statisticsDirectory).map(name =>
+    fs.readFileSync(path.join(statisticsDirectory, name), "utf8")).join("");
+  assert.doesNotMatch(statisticsText, /PRIVATE_RESPONSE_SENTINEL|PRIVATE_USAGE_SENTINEL|partial|synthetic failure/);
+  const statistics = statisticsText.trim().split("\n").map(line => JSON.parse(line));
+  const successful = statistics.filter(record => record.outcome === "completed");
+  assert.ok(successful.length >= 3, "statistics must be recorded with capture off and on");
+  for (const record of successful) {
+    assert.deepEqual(record.usage, { input_tokens: 100, output_tokens: 20, total_tokens: 120,
+      input_tokens_details: { cached_tokens: 80 }, output_tokens_details: { reasoning_tokens: 5 } });
+    assert.ok(record.duration_ms >= 0 && record.first_response_ms >= 0);
+    assert.ok(record.request_bytes > 0 && record.response_bytes > 0);
+    assert.ok(record.started_at && record.finished_at);
+  }
+  assert.equal(statistics.find(record => record.error_code === "UPSTREAM_EARLY_EOF").usage, null,
+    "missing upstream usage must remain unknown, never fabricated as zero");
 
   assert.equal(routerStderr, "");
   process.stdout.write("Streaming terminal handling passed.\n");

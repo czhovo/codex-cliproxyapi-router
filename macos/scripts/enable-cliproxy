@@ -47,7 +47,7 @@ fi
 if [[ -z "$cliproxy_body_logging" ]]; then
   cliproxy_body_logging=n
   if [[ -t 0 ]]; then
-    read "cliproxy_body_logging?记录完整请求/响应正文（可能包含私人内容）？[y/N]: " || cliproxy_body_logging=n
+    read "cliproxy_body_logging?记录完整请求/响应正文（可能包含私人内容；N 仅记录用量和时间等统计）？[y/N]: " || cliproxy_body_logging=n
   fi
 fi
 case "${cliproxy_body_logging:l}" in
@@ -139,6 +139,7 @@ print -r -- "$cliproxy_body_logging" >"$cliproxy_tools_dir/body-logging.txt.tmp-
 chmod 600 "$cliproxy_tools_dir/body-logging.txt.tmp-$$"
 mv -f "$cliproxy_tools_dir/body-logging.txt.tmp-$$" "$cliproxy_tools_dir/body-logging.txt"
 print -- "Full request/response body logging: $cliproxy_body_logging ($cliproxy_tools_dir/body-logs)"
+print -- "Request statistics logging: enabled ($cliproxy_tools_dir/stats-logs)"
 cliproxy_enable_succeeded=true
 if [[ "$cliproxy_routing_mode" == "direct" ]]; then
   print -- "Mode 1 enabled: GPT -> OpenAI direct; DeepSeek/other proxy models -> CLIProxyAPI 127.0.0.1:8317 (Codex entry 127.0.0.1:8318)."
