@@ -283,7 +283,7 @@ catch {
 
 Write-Output ''
 if (-not $PSBoundParameters.ContainsKey('BodyLogging')) {
-    $bodyLoggingAnswer = (Read-Host 'Record full request/response bodies (may contain private content)? [y/N]').Trim()
+    $bodyLoggingAnswer = (Read-Host 'Record full request/response bodies (may contain private content and use substantial disk space)? [y/N]').Trim()
     $BodyLogging = if ($bodyLoggingAnswer -match '^(?i:y|yes)$') { 'y' } else { 'n' }
 }
 $bodyLoggingValue = if ($BodyLogging -match '^(?i:y|yes)$') { 'enabled' } else { 'disabled' }
@@ -291,6 +291,7 @@ $bodyLoggingPath = Join-Path $proxyDir 'body-logging.txt'
 [System.IO.File]::WriteAllText("$bodyLoggingPath.tmp-$PID", $bodyLoggingValue, (New-Object System.Text.UTF8Encoding($false)))
 Move-Item -LiteralPath "$bodyLoggingPath.tmp-$PID" -Destination $bodyLoggingPath -Force
 Write-Output "Full request/response body logging: $bodyLoggingValue ($proxyDir\body-logs)"
+Write-Output "Request statistics logging: enabled ($proxyDir\stats-logs)"
 Write-Output "CLIProxyAPI enabled in routing mode ${selectedMode}:"
 if ($selectedMode -eq 1) {
     Write-Output '  GPT = Codex App credentials, official ChatGPT/Codex direct through 8318'
