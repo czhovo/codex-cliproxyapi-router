@@ -6,6 +6,9 @@
 统计始终写入工具目录 `stats-logs/YYYY-MM-DD.jsonl`（文件日期为 UTC）：每条请求记录开始/结束时间、耗时、
 首个响应头等待时间、模型、路由、状态、重试次数、请求/响应字节数及上游返回的 token 用量，
 包括缓存和推理 token。未收到 usage 时记录 `null`，不会估算或写成零。
+速度档记录为 `requested_service_tier`（请求值）、`response_service_tier`（上游实际返回值）
+及 `service_tier`（优先使用上游返回值，否则使用请求值），包含 `default` / `priority`。
+未提供且未返回的档位记录为 `null`；请求 priority 不等于上游实际按 priority 处理。
 统计文件不保存请求/响应正文、认证头或错误消息正文；与完整正文日志一样，不自动删除历史文件。
 Mac 非交互参数为 `--body-logging y|n`，Windows 为 `-BodyLogging y|n`。
 开关随下次请求生效；首次升级路由器代码需要由启用脚本在空闲时重载。

@@ -62,7 +62,7 @@ async function waitUntil(predicate, description, timeoutMs = 5000) {
 const payloads = {
   "response.completed": {
     type: "response.completed",
-    response: { status: "completed", error: null, incomplete_details: null,
+    response: { status: "completed", error: null, incomplete_details: null, service_tier: "default",
       output: [{ text: "PRIVATE_RESPONSE_SENTINEL" }],
       usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120,
         input_tokens_details: { cached_tokens: 80 }, output_tokens_details: { reasoning_tokens: 5 },
@@ -102,7 +102,10 @@ const mockServer = http.createServer((incoming, response) => {
     return;
   }
   const eventType = terminal === "cyber_policy" ? "error" : terminal;
-  response.end(`event: ${eventType}\ndata: ${JSON.stringify(payloads[terminal])}\n\n`);
+  const payload = terminal === "response.completed" ? { ...payloads[terminal], response: {
+    ...payloads[terminal].response, service_tier: incoming.headers["x-synthetic-service-tier"] || "default",
+  } } : payloads[terminal];
+  response.end(`event: ${eventType}\ndata: ${JSON.stringify(payload)}\n\n`);
 });
 
 let router;
@@ -157,7 +160,7 @@ try {
     { synthetic: "cyber_policy", expected: "error" },
   ];
   for (const terminalCase of terminalCases) {
-    const body = JSON.stringify({ model: "gpt-6-astra", stream: true });
+    const body = JSON.stringify({ model: "gpt-6-astra", stream: true, service_tier: "priority" });
     const result = await request({
       port: routerPort,
       path: "/v1/responses",
@@ -255,11 +258,23 @@ try {
   fs.writeFileSync(captureFlag, "disabled", "utf8");
   await sendCapturedRequest();
   assert.equal(fs.readdirSync(captureDirectory).length, 2, "disable applies without restart");
+  await request({ port: routerPort, path: "/v1/responses", method: "POST",
+    headers: { authorization: "test", "chatgpt-account-id": "test", "x-synthetic-service-tier": "priority" },
+    body: JSON.stringify({ model: "gpt-6-astra", stream: true, service_tier: "default" }) });
   const statisticsText = fs.readdirSync(statisticsDirectory).map(name =>
     fs.readFileSync(path.join(statisticsDirectory, name), "utf8")).join("");
   assert.doesNotMatch(statisticsText, /PRIVATE_RESPONSE_SENTINEL|PRIVATE_USAGE_SENTINEL|partial|synthetic failure/);
   const statistics = statisticsText.trim().split("\n").map(line => JSON.parse(line));
   const successful = statistics.filter(record => record.outcome === "completed");
+  assert.equal(successful[0].requested_service_tier, "priority");
+  assert.equal(successful[0].response_service_tier, "default");
+  assert.equal(successful[0].service_tier, "default", "upstream actual tier takes precedence over requested tier");
+  assert.ok(successful.some(record => record.requested_service_tier === null), "omitted request tier is unknown");
+  assert.equal(successful.at(-1).requested_service_tier, "default");
+  assert.equal(successful.at(-1).response_service_tier, "priority");
+  assert.equal(successful.at(-1).service_tier, "priority");
+  const earlyEof = statistics.find(record => record.error_code === "UPSTREAM_EARLY_EOF");
+  assert.equal(earlyEof.response_service_tier, null, "no response tier must not be fabricated");
   assert.ok(successful.length >= 3, "statistics must be recorded with capture off and on");
   for (const record of successful) {
     assert.deepEqual(record.usage, { input_tokens: 100, output_tokens: 20, total_tokens: 120,

@@ -29,6 +29,10 @@ function numericUsage(source) {
   return Object.keys(result).length ? result : null;
 }
 
+function serviceTier(value) {
+  return ["default", "priority", "auto", "flex", "scale"].includes(value) ? value : null;
+}
+
 function writeRequestStatistics(record) {
   try {
     fs.mkdirSync(statisticsDirectory, { recursive: true, mode: 0o700 });
@@ -167,6 +171,8 @@ function safeLog(fields) {
       route: fields.route ?? null, mode: fields.mode ?? null, model: fields.model ?? null,
       status: fields.status, outcome: "rejected", error_code: fields.error?.code || null,
       usage: null,
+      requested_service_tier: fields.requested_service_tier ?? null,
+      response_service_tier: null, service_tier: fields.requested_service_tier ?? null,
     });
   }
   try {
@@ -343,7 +349,8 @@ function extractModel(rawBody, contentEncoding) {
   try {
     const decoded = decodeBody(rawBody, contentEncoding);
     const payload = JSON.parse(decoded.toString("utf8"));
-    return typeof payload?.model === "string" ? payload.model.slice(0, 160) : "";
+    return { model: typeof payload?.model === "string" ? payload.model.slice(0, 160) : "",
+      requestedServiceTier: serviceTier(payload?.service_tier) };
   } catch (error) {
     return { decodeError: safeError(error) };
   }
@@ -404,6 +411,7 @@ class ResponsesCompletionTracker {
     this.terminalError = undefined;
     this.incompleteReason = "";
     this.usage = null;
+    this.serviceTier = null;
   }
 
   get seen() {
@@ -450,6 +458,8 @@ class ResponsesCompletionTracker {
       const payload = JSON.parse(json);
       const usage = numericUsage(payload?.response?.usage ?? payload?.usage);
       if (usage) this.usage = usage;
+      const tier = serviceTier(payload?.response?.service_tier ?? payload?.service_tier);
+      if (tier) this.serviceTier = tier;
       this.#recordTerminal(payload?.type, payload);
     } catch {
       // A complete JSON line may arrive in a later chunk.
@@ -534,7 +544,7 @@ function connectionKind(request) {
   return request?.reusedSocket ? "reused" : "fresh";
 }
 
-function forwardStreaming({ request, response, rawBody, route, mode, model, upstreamModel, requestUrl, requestId }) {
+function forwardStreaming({ request, response, rawBody, route, mode, model, upstreamModel, requestUrl, requestId, requestedServiceTier }) {
   const started = Date.now();
   let firstResponseAt = null;
   let responseBytes = 0;
@@ -607,6 +617,9 @@ function forwardStreaming({ request, response, rawBody, route, mode, model, upst
       error_code: fields.error?.code || fields.terminal_error?.code || null,
       retries: retryCount, request_bytes: rawBody.length, response_bytes: responseBytes,
       usage: completionTracker?.usage ?? null,
+      requested_service_tier: requestedServiceTier ?? null,
+      response_service_tier: completionTracker?.serviceTier ?? null,
+      service_tier: completionTracker?.serviceTier ?? requestedServiceTier ?? null,
     });
     safeLog({
       event: "complete",
@@ -1028,11 +1041,13 @@ const server = http.createServer(async (request, response) => {
   }
 
   let model = "";
+  let requestedServiceTier = null;
   let decodeError;
   if (request.method === "POST" && requestUrl.pathname === "/v1/responses") {
     const extracted = extractModel(rawBody, request.headers["content-encoding"]);
-    if (typeof extracted === "string") model = extracted;
-    else decodeError = extracted.decodeError;
+    model = extracted.model ?? "";
+    requestedServiceTier = extracted.requestedServiceTier ?? null;
+    decodeError = extracted.decodeError;
   }
 
   const hasNativeAuthorization = typeof request.headers.authorization === "string" && request.headers.authorization.trim().length > 0;
@@ -1048,7 +1063,7 @@ const server = http.createServer(async (request, response) => {
       "native_codex_auth_required",
       "Mode 1 requires Codex App Authorization and chatgpt-account-id headers for GPT requests",
     );
-    safeLog({ event: "route_rejected", request_id: requestId, route: "official", mode, model, status: 401 });
+    safeLog({ event: "route_rejected", request_id: requestId, route: "official", mode, model, status: 401, requested_service_tier: requestedServiceTier });
     return;
   }
   const official =
@@ -1066,11 +1081,11 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       const status = error?.code === "REQUEST_TOO_LARGE" ? 413 : 400;
       sendJsonError(response, status, "model_alias_rewrite_failed", "The selected model request could not be prepared");
-      safeLog({ event: "alias_rewrite_error", request_id: requestId, route, model, status, error: safeError(error) });
+      safeLog({ event: "alias_rewrite_error", request_id: requestId, route, model, status, error: safeError(error), requested_service_tier: requestedServiceTier });
       return;
     }
   }
-  forwardStreaming({ request, response, rawBody, route, mode, model, upstreamModel, requestUrl, requestId });
+  forwardStreaming({ request, response, rawBody, route, mode, model, upstreamModel, requestUrl, requestId, requestedServiceTier });
 });
 
 server.on("connection", (socket) => socket.on("error", () => {}));
