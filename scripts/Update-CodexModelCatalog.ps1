@@ -61,6 +61,23 @@ if ($routingMode -eq '1') {
     if ($null -eq $officialCatalog -or $null -eq $officialCatalog.models) {
         throw 'Bundled official Codex model catalog does not contain a models array.'
     }
+    # Server-side defaults can change before the bundled snapshot is updated.
+    # Use the same account and client version as the desktop CLI for live metadata.
+    try {
+        $authPath = Join-Path $env:USERPROFILE '.codex\auth.json'
+        $nativeTokens = (Get-Content -LiteralPath $authPath -Raw -Encoding UTF8 | ConvertFrom-Json).tokens
+        if ([string]::IsNullOrWhiteSpace([string]$nativeTokens.access_token) -or
+            [string]::IsNullOrWhiteSpace([string]$nativeTokens.account_id)) { throw 'Native login unavailable.' }
+        $versionOutput = @(& $codexExecutable --version 2>$null) -join ''
+        $clientVersion = ($versionOutput -replace '^codex-cli\s+', '').Trim()
+        $nativeHeaders = @{ Authorization = "Bearer $($nativeTokens.access_token)"; 'chatgpt-account-id' = [string]$nativeTokens.account_id }
+        $liveUri = 'https://chatgpt.com/backend-api/codex/models?client_version=' + [Uri]::EscapeDataString($clientVersion)
+        $liveCatalog = Invoke-RestMethod -Uri $liveUri -Headers $nativeHeaders -TimeoutSec 15
+        if (@($liveCatalog.models).Count -eq 0) { throw 'Empty live catalog.' }
+        $officialCatalog = $liveCatalog
+    }
+    catch { Write-Warning 'Live official model metadata unavailable; using the bundled catalog.' }
+    finally { $nativeTokens = $null; $nativeHeaders = $null }
     $officialIds = @($officialCatalog.models | ForEach-Object { [string]$_.slug })
     $supplementalProxyModels = @(
         $catalog.models | Where-Object { ([string]$_.slug) -notin $officialIds }
