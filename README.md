@@ -1,5 +1,10 @@
 # Codex CLIProxyAPI Router for Windows and macOS
 
+Windows 模型列表更新（2026-11-18）：依次发布 GPT 6.2 Astra（272k / 1.05M）、
+GPT 6.2 Sol、GPT 6.1 Terra、GPT 6 Luna 和现有 DeepSeek Flash/Pro。
+Sol/Terra 的原生窗口参数随官方目录更新；旧 GPT 会话 ID 的路由继续兼容。
+此次只更新 Windows 目录，Mac 目录保持原实现。
+
 ## 可选完整正文日志
 
 `enable-cliproxy` 会询问是否记录完整请求和响应 `[y/N]`。默认 N 仅记录统计；Y 同时记录统计和完整正文。

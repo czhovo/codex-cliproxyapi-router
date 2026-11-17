@@ -125,6 +125,7 @@ const responseOutcomeCounters = {
 const modelAliases = new Map([
   ["gpt-5.6-sol-1m", "gpt-5.6-sol"],
   ["gpt-6-astra-1m", "gpt-6-astra"],
+  ["gpt-6.2-astra-1m", "gpt-6.2-astra"],
 ]);
 
 function integerEnv(name, fallback, minimum, maximum) {

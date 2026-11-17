@@ -80,7 +80,7 @@ $compatText = [System.IO.File]::ReadAllText(
     (Join-Path $repositoryRoot 'src\codex-catalog-compat.mjs'),
     [System.Text.Encoding]::UTF8
 )
-if ($compatText -notmatch '\["gpt-6-astra-1m",\s*"gpt-6-astra"\]') {
+if ($compatText -notmatch '\["gpt-6.2-astra-1m",\s*"gpt-6.2-astra"\]') {
     throw 'The Astra 1.05M request alias is missing from the compatibility router.'
 }
 $catalogUpdaterText = [System.IO.File]::ReadAllText(
@@ -88,8 +88,8 @@ $catalogUpdaterText = [System.IO.File]::ReadAllText(
     [System.Text.Encoding]::UTF8
 )
 foreach ($requiredCatalogText in @(
-    'GPT 6 Astra', 'gpt-6-astra-1m', 'Maximum reasoning with automatic task delegation',
-    "'gpt-6.1-sol' = 'GPT 6.1 Sol'", "'gpt-6-luna' = 'GPT 6 Luna'"
+    'GPT 6.2 Astra', 'gpt-6.2-astra-1m', 'Maximum reasoning with automatic task delegation',
+    "'gpt-6.2-sol' = 'GPT 6.2 Sol'", "'gpt-6-luna' = 'GPT 6 Luna'"
 )) {
     if (-not $catalogUpdaterText.Contains($requiredCatalogText)) {
         throw "Windows model catalog updater is missing: $requiredCatalogText"

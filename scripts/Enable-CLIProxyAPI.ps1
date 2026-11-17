@@ -35,8 +35,8 @@ $startupLauncherSource = Join-Path $proxyDir 'CLIProxyAPI-Autostart.vbs'
 $startupFolder = [Environment]::GetFolderPath('Startup')
 $startupLauncherPath = Join-Path $startupFolder 'CLIProxyAPI-Autostart.vbs'
 $middleDot = [char]0x00B7
-$astraShortContextDisplayName = "GPT 6 Astra $middleDot 272k"
-$astraLongContextDisplayName = "GPT 6 Astra $middleDot 1.05M"
+$astraShortContextDisplayName = "GPT 6.2 Astra $middleDot 272k"
+$astraLongContextDisplayName = "GPT 6.2 Astra $middleDot 1.05M"
 $solDisplayName = 'GPT 5.6 Sol'
 $modeWasExplicit = $PSBoundParameters.ContainsKey('Mode')
 
@@ -197,15 +197,15 @@ try {
     $models = @($catalog.models)
     $modelIds = @($models | ForEach-Object { $_.slug })
     $visibleModelIds = @(
-        'gpt-6-astra', 'gpt-6-astra-1m', 'gpt-6.1-sol', 'gpt-6-luna',
+        'gpt-6.2-astra', 'gpt-6.2-astra-1m', 'gpt-6.2-sol', 'gpt-6.1-terra', 'gpt-6-luna',
         'deepseek-v4.1-flash', 'deepseek-v4.1-pro'
     )
     if (@($modelIds | Where-Object { $_ -notin $visibleModelIds }).Count -ne 0) {
         throw 'Generated model catalog contains a model outside the supported picker list.'
     }
 
-    $astraShort = $models | Where-Object { $_.slug -eq 'gpt-6-astra' } | Select-Object -First 1
-    $astraLong = $models | Where-Object { $_.slug -eq 'gpt-6-astra-1m' } | Select-Object -First 1
+    $astraShort = $models | Where-Object { $_.slug -eq 'gpt-6.2-astra' } | Select-Object -First 1
+    $astraLong = $models | Where-Object { $_.slug -eq 'gpt-6.2-astra-1m' } | Select-Object -First 1
     if ($null -ne $astraShort) {
         if ($null -eq $astraLong -or $astraShort.display_name -ne $astraShortContextDisplayName -or
             $astraLong.display_name -ne $astraLongContextDisplayName -or $astraShort.context_window -ne 272000 -or
@@ -217,7 +217,8 @@ try {
     elseif ($null -ne $astraLong) { throw 'Long-context Astra alias exists without an Astra base model.' }
 
     foreach ($expected in @(
-        @{ Id = 'gpt-6.1-sol'; Name = 'GPT 6.1 Sol' },
+        @{ Id = 'gpt-6.2-sol'; Name = 'GPT 6.2 Sol' },
+        @{ Id = 'gpt-6.1-terra'; Name = 'GPT 6.1 Terra' },
         @{ Id = 'gpt-6-luna'; Name = 'GPT 6 Luna' }
     )) {
         $entry = $models | Where-Object { $_.slug -eq $expected.Id } | Select-Object -First 1
@@ -240,7 +241,7 @@ try {
     $currentModelMatch = [Regex]::Match($configText, '(?m)^model\s*=\s*"([^"]+)"\s*$')
     $currentModel = if ($currentModelMatch.Success) { $currentModelMatch.Groups[1].Value } else { '' }
     if ($currentModel -eq 'gpt-5.6-sol-1m') { $currentModel = 'gpt-5.6-sol' }
-    if ($currentModel -eq 'gpt-6-sol') { $currentModel = 'gpt-6.1-sol' }
+    if ($currentModel -in @('gpt-6-sol', 'gpt-6.1-sol')) { $currentModel = 'gpt-6.2-sol' }
     $defaultModel = if ($currentModel -in $modelIds) { $currentModel } else { [string]($models | Select-Object -First 1).slug }
     if ([string]::IsNullOrWhiteSpace($defaultModel)) { throw 'Dynamic upstream catalog contains no selectable model.' }
     $defaultModelObject = $models | Where-Object { $_.slug -eq $defaultModel } | Select-Object -First 1
